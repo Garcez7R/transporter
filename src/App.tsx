@@ -378,7 +378,7 @@ function App() {
     (request) => isToday(request.departureAt) && !['concluida', 'cancelada'].includes(request.status)
   ).length;
   const unreadMessages = visibleRequests.reduce(
-    (total, request) => total + request.messages.filter((message) => !message.internal).length,
+    (total, request) => total + request.messages.filter((message) => !message.internal && !message.readAt).length,
     0
   );
   const pendingDispatch = visibleRequests.filter(
@@ -700,6 +700,45 @@ function App() {
                 </a>
               ))}
             </nav>
+
+            <div className="saas-sidebar-actions">
+              {session.role === 'operador' ? (
+                <>
+                  <div className="saas-action-item">
+                    <span>Solicitações hoje</span>
+                    <strong>{pendingToday}</strong>
+                  </div>
+                  <div className="saas-action-item">
+                    <span>Mensagens não lidas</span>
+                    <strong>{unreadMessages}</strong>
+                  </div>
+                </>
+              ) : null}
+              {session.role === 'gerente' ? (
+                <>
+                  <div className="saas-action-item">
+                    <span>Sem motorista</span>
+                    <strong>{pendingDispatch}</strong>
+                  </div>
+                  <div className="saas-action-item">
+                    <span>Em rota</span>
+                    <strong>{inRoute}</strong>
+                  </div>
+                </>
+              ) : null}
+              {session.role === 'administrador' ? (
+                <>
+                  <div className="saas-action-item">
+                    <span>Confirmações pendentes</span>
+                    <strong>{pendingConfirmations}</strong>
+                  </div>
+                  <div className="saas-action-item">
+                    <span>PINs para trocar</span>
+                    <strong>{pendingPinChange}</strong>
+                  </div>
+                </>
+              ) : null}
+            </div>
           </div>
         </aside>
       )}
@@ -800,45 +839,6 @@ function App() {
             <p>{banner.message}</p>
           </section>
         ) : null}
-
-        {session.role === 'operador' && (
-          <section className="grid two-col action-cards">
-            <article className="glass-card panel-card action-card">
-              <strong>Solicitações pendentes hoje</strong>
-              <span>{pendingToday}</span>
-            </article>
-            <article className="glass-card panel-card action-card">
-              <strong>Mensagens não lidas</strong>
-              <span>{unreadMessages}</span>
-            </article>
-          </section>
-        )}
-
-        {session.role === 'gerente' && (
-          <section className="grid two-col action-cards">
-            <article className="glass-card panel-card action-card">
-              <strong>Distribuições sem motorista</strong>
-              <span>{pendingDispatch}</span>
-            </article>
-            <article className="glass-card panel-card action-card">
-              <strong>Viagens em rota</strong>
-              <span>{inRoute}</span>
-            </article>
-          </section>
-        )}
-
-        {session.role === 'administrador' && (
-          <section className="grid two-col action-cards">
-            <article className="glass-card panel-card action-card">
-              <strong>Confirmações pendentes de paciente</strong>
-              <span>{pendingConfirmations}</span>
-            </article>
-            <article className="glass-card panel-card action-card">
-              <strong>PINs para trocar</strong>
-              <span>{pendingPinChange}</span>
-            </article>
-          </section>
-        )}
 
         {session.role === 'operador' && (
           <section className="grid two-col" id="solicitacoes">

@@ -44,6 +44,7 @@ type RequestDetail = {
     body: string;
     at: string;
     internal: number;
+    readAt?: string | null;
   }>;
   audit: Array<{
     id: number;
@@ -93,7 +94,7 @@ async function fetchDetail(env: Env, requestId: number) {
   if (!row) return null;
 
   const messagesResult = await env.DB!.prepare(
-    `SELECT id, author_name AS author, author_role AS role, body, created_at AS at, is_internal AS internal
+    `SELECT id, author_name AS author, author_role AS role, body, created_at AS at, is_internal AS internal, read_at AS readAt
      FROM messages
      WHERE trip_request_id = ?
      ORDER BY created_at DESC`
@@ -148,7 +149,8 @@ async function fetchDetail(env: Env, requestId: number) {
       role: String((item as Record<string, unknown>).role),
       body: String((item as Record<string, unknown>).body),
       at: String((item as Record<string, unknown>).at),
-      internal: Number((item as Record<string, unknown>).internal)
+      internal: Number((item as Record<string, unknown>).internal),
+      readAt: (item as Record<string, unknown>).readAt ? String((item as Record<string, unknown>).readAt) : null
     })),
     audit: [
       ...((auditLogResult.results ?? []) as Array<Record<string, unknown>>).map((item) => ({
@@ -188,6 +190,20 @@ export async function onRequestGet({ request, env, params }: { request: Request;
 
   if (session?.role === 'cliente' && detail.document.replace(/\D/g, '') !== session.document.replace(/\D/g, '')) {
     return json({ ok: false, error: 'Sem permissão para visualizar esta solicitação.' }, { status: 403 });
+  }
+
+  if (session?.role && env.DB) {
+    const isPatient = session.role === 'cliente';
+    await env.DB.prepare(
+      `UPDATE messages
+       SET read_at = COALESCE(read_at, CURRENT_TIMESTAMP)
+       WHERE trip_request_id = ?
+       AND read_at IS NULL
+       AND is_internal = ?
+       AND author_role != ?`
+    )
+      .bind(requestId, isPatient ? 1 : 0, session.role)
+      .run();
   }
 
   return json({ ok: true, item: detail });

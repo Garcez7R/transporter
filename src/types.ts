@@ -32,6 +32,7 @@ export interface MessageItem {
   body: string;
   at: string;
   internal: boolean;
+  readAt?: string | null;
 }
 
 export interface AuditItem {

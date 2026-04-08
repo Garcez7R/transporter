@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS messages (
   author_name TEXT NOT NULL,
   body TEXT NOT NULL,
   is_internal INTEGER NOT NULL DEFAULT 0,
+  read_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (trip_request_id) REFERENCES trip_requests(id)
 );

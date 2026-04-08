@@ -40,6 +40,7 @@ type RequestRow = {
     body: string;
     at: string;
     internal: number;
+    readAt?: string | null;
   }>;
   audit: Array<{
     id: number;
@@ -70,7 +71,7 @@ async function mapRequestRows(env: Env, rows: Array<Record<string, unknown>>) {
     const placeholderList = requestIds.map(() => '?').join(', ');
 
     const messageResult = await env.DB.prepare(
-      `SELECT id, trip_request_id, author_name AS author, author_role AS role, body, created_at AS at, is_internal AS internal
+      `SELECT id, trip_request_id, author_name AS author, author_role AS role, body, created_at AS at, is_internal AS internal, read_at AS readAt
        FROM messages
        WHERE trip_request_id IN (${placeholderList})
        ORDER BY created_at DESC`
@@ -153,7 +154,8 @@ async function mapRequestRows(env: Env, rows: Array<Record<string, unknown>>) {
         role: String(message.role),
         body: String(message.body),
         at: String(message.at),
-        internal: Number(message.internal)
+        internal: Number(message.internal),
+        readAt: message.readAt ? String(message.readAt) : null
       })),
       audit: mappedAudit
     } as unknown as RequestRow;
