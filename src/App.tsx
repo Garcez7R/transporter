@@ -1155,25 +1155,35 @@ function App() {
                 Criar usuário
               </button>
             </form>
-            <div className="admin-grid">
-              {users.length ? (
-                users.map((user) => (
-                  <article className="admin-card" key={user.id}>
-                    <div className="admin-avatar">{getInitials(user.name)}</div>
-                    <strong>{user.name}</strong>
-                    <p>{roleLabels[user.role as AccessRole] ?? user.role}</p>
-                    <small>{formatDocument(user.document)}</small>
-                    <small>{user.pinMustChange ? 'PIN inicial pendente' : 'PIN alterado'}</small>
-                  </article>
-                ))
-              ) : (
-                <div className="empty-state">
-                  <div className="empty-icon"></div>
-                  <strong>Nenhum usuário cadastrado</strong>
-                  <p>Cadastre o primeiro operador, gerente, motorista ou paciente.</p>
+            {users.length ? (
+              <div className="admin-table">
+                <div className="admin-row admin-row-head">
+                  <span>Usuário</span>
+                  <span>Perfil</span>
+                  <span>CPF</span>
+                  <span>Status do PIN</span>
                 </div>
-              )}
-            </div>
+                <div className="admin-table-body">
+                  {users.map((user) => (
+                    <div className="admin-row" key={user.id}>
+                      <div className="admin-user">
+                        <span className="admin-avatar">{getInitials(user.name)}</span>
+                        <strong>{user.name}</strong>
+                      </div>
+                      <span>{roleLabels[user.role as AccessRole] ?? user.role}</span>
+                      <span>{formatDocument(user.document)}</span>
+                      <span>{user.pinMustChange ? 'PIN inicial pendente' : 'PIN alterado'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="empty-state">
+                <div className="empty-icon"></div>
+                <strong>Nenhum usuário cadastrado</strong>
+                <p>Cadastre o primeiro operador, gerente, motorista ou paciente.</p>
+              </div>
+            )}
           </section>
         ) : null}
         {toasts.length ? (
