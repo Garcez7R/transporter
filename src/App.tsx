@@ -84,8 +84,6 @@ function App() {
     role: 'operador',
     pin: ''
   });
-  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isStandalone, setIsStandalone] = useState(false);
   const [patientFontLarge, setPatientFontLarge] = useState(() => readJson<boolean>('transporter:patient-font', false));
   const [activeNav, setActiveNav] = useState('visao');
 
@@ -98,24 +96,6 @@ function App() {
   useEffect(() => {
     writeJson('transporter:patient-font', patientFontLarge);
   }, [patientFontLarge]);
-
-  useEffect(() => {
-    const standalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
-    setIsStandalone(standalone);
-
-    const handleBeforeInstallPrompt = (event: Event) => {
-      event.preventDefault();
-      setInstallPrompt(event as BeforeInstallPromptEvent);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    };
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -345,13 +325,6 @@ function App() {
     }
   }
 
-  const operationalSignals = [
-    { label: 'Solicitações ativas', value: String(requests.length) },
-    { label: 'Em distribuição', value: String(requests.filter((item) => item.status === 'aguardando_distribuicao').length) },
-    { label: 'Mensagens novas', value: String(requests.reduce((total, request) => total + request.messages.length, 0)) },
-    { label: 'PIN inicial', value: '0000' },
-    { label: 'PWA', value: isStandalone ? 'Instalado' : 'Pronto' }
-  ];
 
   function parseDate(value: string) {
     if (!value) return null;
@@ -402,13 +375,6 @@ function App() {
     return `${first}${last}`.toUpperCase();
   }
 
-  async function handleInstallApp() {
-    if (!installPrompt) return;
-    installPrompt.prompt();
-    await installPrompt.userChoice.catch(() => undefined);
-    setInstallPrompt(null);
-  }
-
   function showBanner(type: BannerState['type'], message: string) {
     setBanner({ type, message });
     window.setTimeout(() => {
@@ -425,13 +391,6 @@ function App() {
   }
 
   const dashboardTitle = session ? `${roleLabels[session.role]} em operação` : 'Portal de acesso';
-  const profileMap = {
-    cliente: requests.filter((request) => normalizeDocument(request.document) === normalizeDocument(session?.document ?? '')).length,
-    operador: requests.length,
-    gerente: requests.filter((request) => request.status !== 'concluida').length,
-    motorista: requests.filter((request) => request.driver.toLowerCase() === session?.name.toLowerCase()).length,
-    administrador: users.length
-  };
   const isFiltered = Boolean(requestFilter.trim());
   const requestEmptyText = isFiltered
     ? 'Nenhuma solicitação corresponde ao filtro aplicado.'
@@ -699,22 +658,40 @@ function App() {
       )}
 
       <main className="content-panel">
-        <header className="topbar topbar-v2">
-          <div>
-            <p className="eyebrow">Visão executiva</p>
-            <h2>Central da Solicitação, frota e acessos</h2>
-          </div>
-          <div className="topbar-actions">
-            {patientView ? (
+        {isPatientSession ? (
+          <header className="topbar topbar-v2 patient-topbar">
+            <div></div>
+            <div className="topbar-actions">
               <button className="cta ghost font-toggle" type="button" onClick={() => setPatientFontLarge((prev) => !prev)}>
                 {patientFontLarge ? 'Fonte normal' : 'Fonte maior'}
               </button>
-            ) : null}
-            <button className="cta ghost" onClick={handleLogout} type="button">
-              Sair
-            </button>
-          </div>
-        </header>
+              <button className="cta ghost" onClick={handleLogout} type="button">
+                Sair
+              </button>
+            </div>
+          </header>
+        ) : (
+          <section className="glass-card panel-card internal-header">
+            <div className="internal-header-top">
+              <div>
+                <p className="eyebrow">Operação</p>
+                <h2>Painel operacional</h2>
+              </div>
+              <div className="topbar-actions">
+                <button className="cta ghost" onClick={handleLogout} type="button">
+                  Sair
+                </button>
+              </div>
+            </div>
+            <div className="profile-summary">
+              <div className="profile-avatar">{getInitials(session.name)}</div>
+              <div>
+                <strong>{session.name}</strong>
+                <span>{roleLabels[session.role]}</span>
+              </div>
+            </div>
+          </section>
+        )}
 
         {isPatientSession ? (
           <section className="glass-card panel-card patient-header">
@@ -738,43 +715,7 @@ function App() {
           </section>
         ) : null}
 
-        {!isPatientSession ? (
-          <section className="glass-card panel-card" id="visao">
-            <div className="section-head">
-              <p className="eyebrow">Resumo</p>
-              <h2>Painel operacional</h2>
-            </div>
-            <div className="profile-summary">
-              <div className="profile-avatar">{getInitials(session.name)}</div>
-              <div>
-                <strong>{session.name}</strong>
-                <span>{roleLabels[session.role]}</span>
-              </div>
-            </div>
-            <div className="hero-stats stats-v2">
-              <div>
-                <strong>{visibleRequests.length}</strong>
-                <span>solicitações visíveis</span>
-              </div>
-              <div>
-                <strong>{session.mustChangePin ? 'Troca pendente' : 'PIN atualizado'}</strong>
-                <span>{session.mustChangePin ? 'Primeiro acesso' : 'Sessão ativa'}</span>
-              </div>
-              <div>
-                <strong>{profileMap[session.role]}</strong>
-                <span>itens do perfil</span>
-              </div>
-            </div>
-            <div className="signals signals-v2">
-              {operationalSignals.map((signal) => (
-                <div key={signal.label}>
-                  <strong>{signal.value}</strong>
-                  <span>{signal.label}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-        ) : null}
+        {!isPatientSession ? null : null}
 
         {session.mustChangePin && (
           <section className="glass-card alert-card">
