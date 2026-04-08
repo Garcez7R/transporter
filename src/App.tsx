@@ -638,9 +638,6 @@ function App() {
                 <h1>Portal do paciente</h1>
               </div>
             </div>
-            <p className="hero-copy">
-              Consulte seus agendamentos de transporte, confirme o recebimento e envie mensagens para a equipe.
-            </p>
           </div>
 
           <header className="topbar topbar-v2">
