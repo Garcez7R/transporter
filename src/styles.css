@@ -454,6 +454,16 @@ h1 {
   gap: 24px;
 }
 
+.patient-view {
+  grid-template-columns: 1fr;
+}
+
+.patient-view .content-panel {
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+}
+
 .internal-header {
   gap: 16px;
 }
@@ -1378,6 +1388,28 @@ select:focus {
 }
 
 .patient-font-large .cta {
+  font-size: 1rem;
+  padding: 14px 20px;
+}
+
+.patient-view.patient-font-large {
+  font-size: 1.08rem;
+}
+
+.patient-view.patient-font-large .patient-header h2 {
+  font-size: clamp(1.6rem, 2.6vw, 2.3rem);
+}
+
+.patient-view.patient-font-large .patient-header .profile-summary strong {
+  font-size: 1.08rem;
+}
+
+.patient-view.patient-font-large input,
+.patient-view.patient-font-large textarea {
+  font-size: 1.05rem;
+}
+
+.patient-view.patient-font-large .cta {
   font-size: 1rem;
   padding: 14px 20px;
 }

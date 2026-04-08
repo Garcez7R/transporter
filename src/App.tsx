@@ -729,9 +729,9 @@ function App() {
 
   return (
     <div
-      className={`app-shell dashboard-shell ${patientView && patientFontLarge ? 'patient-font-large' : ''} ${
-        !isPatientSession ? 'saas-app-shell internal-shell' : ''
-      }`}
+      className={`app-shell dashboard-shell ${isPatientSession ? 'patient-view' : ''} ${
+        patientView && patientFontLarge ? 'patient-font-large' : ''
+      } ${!isPatientSession ? 'saas-app-shell internal-shell' : ''}`}
     >
       {isPatientSession ? null : (
         <aside className="saas-sidebar">
