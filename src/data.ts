@@ -11,17 +11,17 @@ export const demoUsers: DemoUser[] = [
 export const profiles: ProfileSummary[] = [
   {
     role: 'cliente',
-    label: 'Cliente',
+    label: 'Paciente',
     count: 18,
     highlight: 'Agenda pública',
-    description: 'Consulta por CPF/CNPJ + PIN com confirmação e mensagens'
+    description: 'Consulta por CPF + PIN com confirmação e mensagens'
   },
   {
     role: 'operador',
     label: 'Operador',
     count: 7,
     highlight: 'Triagem e protocolo',
-    description: 'Cadastro rápido com reaproveitamento de clientes'
+    description: 'Cadastro rápido com reaproveitamento de pacientes'
   },
   {
     role: 'gerente',
@@ -51,7 +51,7 @@ const sharedMessages: MessageItem[] = [
     id: 'msg-1',
     author: 'Equipe Transporte',
     role: 'sistema',
-    body: 'Agenda publicada e aguardando confirmação do cliente.',
+    body: 'Agenda publicada e aguardando confirmação do paciente.',
     at: '08/04/2026 05:55',
     internal: false
   },
@@ -84,7 +84,7 @@ export const activeTrips: TripRequest[] = [
     status: 'agendada',
     driver: 'Carlos Mendes',
     vehicle: 'Sprinter BRG-4A12',
-    notes: 'Cliente com mala pequena e embarque rápido.',
+    notes: 'Paciente com mala pequena e embarque rápido.',
     companions: '1 acompanhante',
     phoneVisible: true,
     pinStatus: 'active',
@@ -95,8 +95,8 @@ export const activeTrips: TripRequest[] = [
   {
     id: '2',
     protocol: 'TRP-2026-00477',
-    clientName: 'Cooperativa Norte',
-    document: '12345678000190',
+    clientName: 'Marcia Oliveira',
+    document: '12345678901',
     phone: '+55 11 98888-2000',
     destination: 'Centro de Distribuição',
     boardingPoint: 'Rua do Porto, 245',
@@ -105,7 +105,7 @@ export const activeTrips: TripRequest[] = [
     status: 'aguardando_distribuicao',
     driver: '',
     vehicle: '',
-    notes: 'Carga leve e retirada no ponto combinado.',
+    notes: 'Retorno agendado após consulta.',
     companions: 'Sem acompanhantes',
     phoneVisible: false,
     pinStatus: 'first_access',
@@ -163,7 +163,7 @@ export const flowSteps = [
   'Operador registra a solicitação com protocolo automático.',
   'Gerente distribui motorista, veículo e horários.',
   'Motorista recebe a agenda no celular com navegação e contato.',
-  'Cliente acompanha, confirma recebimento e envia mensagens.',
+  'Paciente acompanha, confirma recebimento e envia mensagens.',
   'Tudo fica auditado com histórico de mudanças e leitura.'
 ];
 

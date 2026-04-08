@@ -36,7 +36,7 @@ type RequestPatch = Partial<
 };
 
 const roleLabels: Record<AccessRole, string> = {
-  cliente: 'Cliente',
+  cliente: 'Paciente',
   operador: 'Operador',
   gerente: 'Gerente',
   motorista: 'Motorista',
@@ -44,7 +44,7 @@ const roleLabels: Record<AccessRole, string> = {
 };
 
 const roleDescriptions: Record<AccessRole, string> = {
-  cliente: 'Portal de consulta com CPF/CNPJ + PIN.',
+  cliente: 'Portal do paciente com CPF + PIN.',
   operador: 'Cadastro, triagem e histórico das solicitações de transporte de pacientes.',
   gerente: 'Distribuição da frota e controle operacional da agenda pública.',
   motorista: 'Agenda mobile otimizada para o serviço de transporte.',
@@ -437,11 +437,11 @@ function App() {
 
             <form className="login-form" onSubmit={handleLogin}>
               <label>
-                <span>CPF / CNPJ</span>
+                <span>CPF</span>
                 <input
                   value={loginDocument}
                   onChange={(event) => setLoginDocument(formatDocument(event.target.value))}
-                  placeholder="Digite o documento"
+                  placeholder="Digite o CPF"
                 />
               </label>
               <label>
@@ -497,7 +497,7 @@ function App() {
         </div>
 
         <p className="hero-copy">
-          {roleDescriptions[session.role]} O acesso está vinculado ao documento {formatDocument(session.document)}.
+          {roleDescriptions[session.role]} O acesso está vinculado ao CPF {formatDocument(session.document)}.
         </p>
 
         <div className="profile-summary">
@@ -618,8 +618,8 @@ function App() {
                 <h2>Nova solicitação</h2>
               </div>
               <form className="request-form" onSubmit={handleCreateRequest}>
-                <input placeholder="Nome do cliente" value={requestForm.clientName} onChange={(event) => setRequestForm({ ...requestForm, clientName: event.target.value })} />
-                <input placeholder="CPF/CNPJ" value={requestForm.document} onChange={(event) => setRequestForm({ ...requestForm, document: formatDocument(event.target.value) })} />
+                <input placeholder="Nome do paciente" value={requestForm.clientName} onChange={(event) => setRequestForm({ ...requestForm, clientName: event.target.value })} />
+                <input placeholder="CPF" value={requestForm.document} onChange={(event) => setRequestForm({ ...requestForm, document: formatDocument(event.target.value) })} />
                 <input placeholder="Telefone" value={requestForm.phone} onChange={(event) => setRequestForm({ ...requestForm, phone: event.target.value })} />
                 <input placeholder="Destino" value={requestForm.destination} onChange={(event) => setRequestForm({ ...requestForm, destination: event.target.value })} />
                 <input placeholder="Local de embarque" value={requestForm.boardingPoint} onChange={(event) => setRequestForm({ ...requestForm, boardingPoint: event.target.value })} />
@@ -639,7 +639,7 @@ function App() {
                 <h2>Solicitações recentes</h2>
               </div>
               <div className="filter-row">
-                <input placeholder="Filtrar por cliente, protocolo ou destino" value={requestFilter} onChange={(event) => setRequestFilter(event.target.value)} />
+                <input placeholder="Filtrar por paciente, protocolo ou destino" value={requestFilter} onChange={(event) => setRequestFilter(event.target.value)} />
               </div>
               <div className="request-list">
                 {visibleRequests.map((request) => (
@@ -768,8 +768,8 @@ function App() {
               </div>
               {activeRequest ? (
                 <div className="detail-stack">
-                  <p><strong>Cliente:</strong> {activeRequest.clientName}</p>
-                  <p><strong>Documento:</strong> {formatDocument(activeRequest.document)}</p>
+                  <p><strong>Paciente:</strong> {activeRequest.clientName}</p>
+                  <p><strong>CPF:</strong> {formatDocument(activeRequest.document)}</p>
                   <p><strong>Telefone:</strong> {activeRequest.phoneVisible ? activeRequest.phone : 'oculto'}</p>
                   <p><strong>Embarque:</strong> {activeRequest.boardingPoint}</p>
                   <p><strong>Destino:</strong> {activeRequest.destination}</p>
@@ -821,11 +821,11 @@ function App() {
               </div>
               <div className="detail-stack">
                 <p><strong>Protocolo:</strong> {activeRequest.protocol}</p>
-                <p><strong>Cliente:</strong> {activeRequest.clientName}</p>
+                <p><strong>Paciente:</strong> {activeRequest.clientName}</p>
                 <p><strong>Destino:</strong> {activeRequest.destination}</p>
                 <p><strong>Motorista:</strong> {activeRequest.driver || 'não atribuído'}</p>
                 <p><strong>Veículo:</strong> {activeRequest.vehicle || 'não atribuído'}</p>
-                <p><strong>PIN do cliente:</strong> {activeRequest.pinStatus}</p>
+                <p><strong>PIN do paciente:</strong> {activeRequest.pinStatus}</p>
                 <p><strong>Confirmação:</strong> {activeRequest.clientConfirmedAt ?? 'pendente'}</p>
                 <p><strong>Observações:</strong> {activeRequest.notes}</p>
               </div>
@@ -837,7 +837,7 @@ function App() {
                 <h2>Histórico e comunicação</h2>
               </div>
               <div className="message-compose">
-                <textarea value={messageDraft} onChange={(event) => setMessageDraft(event.target.value)} placeholder="Escreva uma mensagem para a operação, motorista ou cliente" />
+                <textarea value={messageDraft} onChange={(event) => setMessageDraft(event.target.value)} placeholder="Escreva uma mensagem para a operação, motorista ou paciente" />
                 <button className="cta" type="button" onClick={handleSendMessage}>
                   Enviar mensagem
                 </button>
@@ -848,7 +848,7 @@ function App() {
                 ) : null}
                 {session.role !== 'cliente' ? (
                   <button className="cta ghost" type="button" onClick={handleResetClientPin}>
-                    Resetar PIN do cliente
+                    Resetar PIN do paciente
                   </button>
                 ) : null}
               </div>
@@ -893,7 +893,7 @@ function App() {
             </div>
             <div>
               <strong>Banco</strong>
-              <p>Cloudflare D1 para clientes, viagens, mensagens, logs e sessões.</p>
+              <p>Cloudflare D1 para pacientes, viagens, mensagens, logs e sessões.</p>
             </div>
             <div>
               <strong>Segurança</strong>
@@ -914,9 +914,9 @@ function App() {
             </div>
             <form className="admin-create-form" onSubmit={handleCreateUser}>
               <input placeholder="Nome" value={userForm.name} onChange={(event) => setUserForm({ ...userForm, name: event.target.value })} />
-              <input placeholder="CPF/CNPJ" value={userForm.document} onChange={(event) => setUserForm({ ...userForm, document: formatDocument(event.target.value) })} />
+              <input placeholder="CPF" value={userForm.document} onChange={(event) => setUserForm({ ...userForm, document: formatDocument(event.target.value) })} />
               <select value={userForm.role} onChange={(event) => setUserForm({ ...userForm, role: event.target.value as AccessRole })}>
-                <option value="cliente">cliente</option>
+                <option value="cliente">paciente</option>
                 <option value="operador">operador</option>
                 <option value="gerente">gerente</option>
                 <option value="motorista">motorista</option>
