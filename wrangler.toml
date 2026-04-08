@@ -5,4 +5,4 @@ pages_build_output_dir = "dist"
 [[d1_databases]]
 binding = "DB"
 database_name = "transporter"
-database_id = "REPLACE_WITH_REAL_D1_ID"
+database_id = "e52175f9-989a-4a3b-a28d-f959c9b25d01"

@@ -28,6 +28,17 @@ npm run cf:d1:apply
 npm run cf:deploy
 ```
 
+## GitHub Automation
+
+O repositório já vem com um workflow em [`.github/workflows/deploy.yml`](/home/rgarcez/Documentos/transporter/.github/workflows/deploy.yml) que publica automaticamente no Cloudflare Pages sempre que houver `push` na branch `main`.
+
+Secrets necessários no GitHub:
+
+- `CLOUDFLARE_ACCOUNT_ID`
+- `CLOUDFLARE_API_TOKEN`
+
+Se quiser disparar manualmente, o workflow também aceita `workflow_dispatch`.
+
 ## Acesso inicial
 
 - O PIN inicial de todos os perfis é `0000`.
