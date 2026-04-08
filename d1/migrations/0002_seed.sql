@@ -2,7 +2,10 @@ INSERT OR IGNORE INTO users (id, role, name, document, pin_hash, pin_must_change
   (1, 'administrador', 'Admin Central', '96820373015', '9af15b336e6a9619928537df30b2e6a2376569fcf9d7e773eccede65606529a0', 1),
   (2, 'operador', 'Equipe Atendimento', '11111111111', '9af15b336e6a9619928537df30b2e6a2376569fcf9d7e773eccede65606529a0', 1),
   (3, 'gerente', 'Logistica Norte', '22222222222', '9af15b336e6a9619928537df30b2e6a2376569fcf9d7e773eccede65606529a0', 1),
-  (4, 'motorista', 'Carlos Mendes', '33333333333', '9af15b336e6a9619928537df30b2e6a2376569fcf9d7e773eccede65606529a0', 1);
+  (4, 'motorista', 'Carlos Mendes', '33333333333', '9af15b336e6a9619928537df30b2e6a2376569fcf9d7e773eccede65606529a0', 1),
+  (5, 'cliente', 'Ana Lúcia Pereira', '12345678909', '9af15b336e6a9619928537df30b2e6a2376569fcf9d7e773eccede65606529a0', 1),
+  (6, 'cliente', 'Cooperativa Norte', '12345678000190', '9af15b336e6a9619928537df30b2e6a2376569fcf9d7e773eccede65606529a0', 1),
+  (7, 'cliente', 'João Batista Silva', '98765432142', '9af15b336e6a9619928537df30b2e6a2376569fcf9d7e773eccede65606529a0', 1);
 
 INSERT OR IGNORE INTO clients (id, name, document, phone, address) VALUES
   (1, 'Ana Lúcia Pereira', '12345678909', '+55 11 99999-1000', 'Av. Paulista, 1000'),

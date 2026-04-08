@@ -1,19 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { activeTrips, demoUsers, fleet, flowSteps, profiles, defaultRequestForm } from './data';
-import type { AccessRole, DemoUser, RequestFormState, SessionUser, TripRequest } from './types';
-import {
-  createProtocol,
-  createRequestId,
-  currentStamp,
-  formatDocument,
-  normalizeDocument,
-  readJson,
-  removeItem,
-  SESSION_KEY,
-  REQUESTS_KEY,
-  writeJson
-} from './lib/persistence';
+import { changePin, createRequest, listRequests, login as loginApi, logout as logoutApi, me, updateRequest } from './lib/api';
+import { formatDocument, normalizeDocument, readJson, removeItem, SESSION_KEY, currentStamp, writeJson } from './lib/persistence';
+import type { AccessRole, RequestFormState, RequestStatus, SessionUser, TripRequest } from './types';
 
 type RequestPatch = Partial<
   Pick<
@@ -30,7 +20,9 @@ type RequestPatch = Partial<
     | 'clientConfirmedAt'
     | 'pinStatus'
   >
->;
+> & {
+  message?: string;
+};
 
 const roleLabels: Record<AccessRole, string> = {
   cliente: 'Cliente',
@@ -49,204 +41,208 @@ const roleDescriptions: Record<AccessRole, string> = {
 };
 
 function App() {
-  const [accounts, setAccounts] = useState<DemoUser[]>(() => readJson('transporter:accounts', demoUsers));
   const [session, setSession] = useState<SessionUser | null>(() => readJson<SessionUser | null>(SESSION_KEY, null));
-  const [requests, setRequests] = useState<TripRequest[]>(() => readJson<TripRequest[]>(REQUESTS_KEY, activeTrips));
+  const [requests, setRequests] = useState<TripRequest[]>([]);
   const [loginDocument, setLoginDocument] = useState('');
   const [loginPin, setLoginPin] = useState('0000');
   const [loginError, setLoginError] = useState('');
+  const [appError, setAppError] = useState('');
+  const [loading, setLoading] = useState(true);
   const [pinDraft, setPinDraft] = useState('');
   const [pinConfirm, setPinConfirm] = useState('');
-  const [activeRequestId, setActiveRequestId] = useState<string>(() => activeTrips[0]?.id ?? '');
+  const [activeRequestId, setActiveRequestId] = useState('');
   const [requestFilter, setRequestFilter] = useState('');
   const [requestForm, setRequestForm] = useState<RequestFormState>(defaultRequestForm);
   const [messageDraft, setMessageDraft] = useState('');
-
-  useEffect(() => {
-    writeJson('transporter:accounts', accounts);
-  }, [accounts]);
 
   useEffect(() => {
     writeJson(SESSION_KEY, session);
   }, [session]);
 
   useEffect(() => {
-    writeJson(REQUESTS_KEY, requests);
-  }, [requests]);
+    let cancelled = false;
+
+    async function bootstrap() {
+      try {
+        if (!session?.token) {
+          setLoading(false);
+          return;
+        }
+
+        const sessionResult = await me(session.token);
+        if (cancelled) return;
+
+        if (sessionResult.session) {
+          setSession({ ...sessionResult.session, token: session.token });
+        }
+
+        await refreshRequests(session.token);
+      } catch {
+        if (!cancelled) {
+          setSession(null);
+          removeItem(SESSION_KEY);
+          setRequests([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    bootstrap();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
-    const visible = filteredRequests(requests, session);
+    if (!session?.token) return;
+
+    let cancelled = false;
+    refreshRequests(session.token).catch(() => {
+      if (!cancelled) setAppError('Não foi possível carregar as solicitações.');
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.token, session?.role]);
+
+  useEffect(() => {
+    if (!requests.length) {
+      setActiveRequestId('');
+      return;
+    }
+
+    const visible = filteredRequests(requests, session, requestFilter);
     if (!visible.some((request) => request.id === activeRequestId)) {
       setActiveRequestId(visible[0]?.id ?? '');
     }
-  }, [requests, session, activeRequestId]);
+  }, [requests, session, requestFilter, activeRequestId]);
 
-  const visibleRequests = useMemo(() => filteredRequests(requests, session, requestFilter), [requests, session, requestFilter]);
+  const visibleRequests = useMemo(
+    () => filteredRequests(requests, session, requestFilter),
+    [requests, session, requestFilter]
+  );
   const activeRequest = visibleRequests.find((request) => request.id === activeRequestId) ?? visibleRequests[0] ?? null;
-  function handleLogin(event: FormEvent<HTMLFormElement>) {
+
+  async function refreshRequests(token = session?.token) {
+    if (!token) {
+      setRequests([]);
+      return;
+    }
+
+    const response = await listRequests(token);
+    setRequests(response.rows ?? []);
+  }
+
+  async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoginError('');
+    setAppError('');
 
-    const document = normalizeDocument(loginDocument);
-    const account = accounts.find((item) => normalizeDocument(item.document) === document);
+    try {
+      const response = await loginApi(normalizeDocument(loginDocument), loginPin);
+      if (!response.session) {
+        throw new Error('Resposta de login inválida.');
+      }
 
-    if (!account) {
-      setLoginError('Documento não encontrado. Use um acesso de demonstração ou cadastre o usuário.');
-      return;
+      const nextSession: SessionUser = {
+        name: response.session.name ?? '',
+        document: response.session.document ?? '',
+        role: response.session.role as AccessRole,
+        mustChangePin: Boolean(response.session.mustChangePin),
+        token: response.session.token ?? ''
+      };
+
+      setSession(nextSession);
+      writeJson(SESSION_KEY, nextSession);
+      setLoginPin('0000');
+      setPinDraft('');
+      setPinConfirm('');
+      await refreshRequests(nextSession.token);
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : 'Falha ao entrar.');
     }
-
-    if (account.pin !== loginPin) {
-      setLoginError('PIN inválido. O PIN inicial de todos os acessos é 0000.');
-      return;
-    }
-
-    setSession({
-      name: account.name,
-      document: account.document,
-      role: account.role,
-      mustChangePin: account.mustChangePin,
-      token: crypto.randomUUID()
-    });
-    setPinDraft('');
-    setPinConfirm('');
   }
 
-  function handleChangePin(event: FormEvent<HTMLFormElement>) {
+  async function handleChangePin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!session?.token) return;
 
-    if (!session) return;
     if (pinDraft.length < 4 || pinDraft !== pinConfirm) {
+      setAppError('O novo PIN precisa ter ao menos 4 dígitos e deve ser confirmado.');
       return;
     }
 
-    setAccounts((current) =>
-      current.map((account) =>
-        normalizeDocument(account.document) === normalizeDocument(session.document)
-          ? { ...account, pin: pinDraft, mustChangePin: false }
-          : account
-      )
-    );
-
-    setSession((current) => (current ? { ...current, mustChangePin: false } : current));
-    setPinDraft('');
-    setPinConfirm('');
+    try {
+      await changePin(session.token, pinDraft);
+      const nextSession = { ...session, mustChangePin: false };
+      setSession(nextSession);
+      writeJson(SESSION_KEY, nextSession);
+      setPinDraft('');
+      setPinConfirm('');
+      await refreshRequests(session.token);
+    } catch (error) {
+      setAppError(error instanceof Error ? error.message : 'Não foi possível alterar o PIN.');
+    }
   }
 
-  function handleLogout() {
+  async function handleLogout() {
+    if (session?.token) {
+      await logoutApi(session.token).catch(() => undefined);
+    }
+
     setSession(null);
     removeItem(SESSION_KEY);
+    setRequests([]);
+    setActiveRequestId('');
   }
 
-  function handleCreateRequest(event: FormEvent<HTMLFormElement>) {
+  async function handleCreateRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!session || session.role !== 'operador') return;
+    if (!session?.token || session.role !== 'operador') return;
 
-    const nextIndex = requests.length + 1;
-    const request: TripRequest = {
-      id: createRequestId(),
-      protocol: createProtocol(nextIndex),
-      clientName: requestForm.clientName,
-      document: normalizeDocument(requestForm.document),
-      phone: requestForm.phone,
-      destination: requestForm.destination,
-      boardingPoint: requestForm.boardingPoint,
-      departureAt: requestForm.departureAt,
-      arrivalEta: requestForm.arrivalEta,
-      status: 'em_atendimento',
-      driver: '',
-      vehicle: '',
-      notes: requestForm.notes,
-      companions: requestForm.companions,
-      phoneVisible: true,
-      pinStatus: 'first_access',
-      messages: [
-        {
-          id: `msg-${crypto.randomUUID().slice(0, 6)}`,
-          author: session.name,
-          role: session.role,
-          body: 'Solicitação criada no painel operacional.',
-          at: currentStamp(),
-          internal: true
-        }
-      ],
-      audit: [{ id: `audit-${crypto.randomUUID().slice(0, 6)}`, label: `Solicitação criada por ${session.name}`, at: currentStamp() }]
-    };
-
-    setRequests((current) => [request, ...current]);
-    setRequestForm(defaultRequestForm);
-    setActiveRequestId(request.id);
+    try {
+      const response = await createRequest(requestForm, session.token);
+      const createdId = response.row && 'id' in response.row ? String(response.row.id) : '';
+      setRequestForm(defaultRequestForm);
+      await refreshRequests(session.token);
+      if (createdId) setActiveRequestId(createdId);
+    } catch (error) {
+      setAppError(error instanceof Error ? error.message : 'Não foi possível criar a solicitação.');
+    }
   }
 
-  function patchRequest(id: string, patch: RequestPatch, auditLabel?: string) {
-    setRequests((current) =>
-      current.map((request) => {
-        if (request.id !== id) return request;
+  async function patchRequest(id: string, patch: RequestPatch) {
+    if (!session?.token || !id) return;
 
-        const auditEntry = auditLabel
-          ? [{ id: `audit-${crypto.randomUUID().slice(0, 6)}`, label: auditLabel, at: currentStamp() }]
-          : [];
-
-        return {
-          ...request,
-          ...patch,
-          audit: [...auditEntry, ...request.audit]
-        };
-      })
-    );
+    try {
+      await updateRequest(id, patch, session.token);
+      await refreshRequests(session.token);
+    } catch (error) {
+      setAppError(error instanceof Error ? error.message : 'Não foi possível atualizar a solicitação.');
+    }
   }
 
-  function handleSendMessage() {
-    if (!session || !activeRequest || !messageDraft.trim()) return;
-
-    const message = {
-      id: `msg-${crypto.randomUUID().slice(0, 6)}`,
-      author: session.name,
-      role: session.role,
-      body: messageDraft.trim(),
-      at: currentStamp(),
-      internal: session.role !== 'cliente'
-    };
-
-    patchRequest(
-      activeRequest.id,
-      { status: activeRequest.status === 'rascunho' ? 'em_atendimento' : activeRequest.status },
-      `Mensagem enviada por ${session.name}`
-    );
-
-    setRequests((current) =>
-      current.map((request) =>
-        request.id === activeRequest.id ? { ...request, messages: [message, ...request.messages] } : request
-      )
-    );
+  async function handleSendMessage() {
+    if (!activeRequest || !messageDraft.trim()) return;
+    await patchRequest(activeRequest.id, { message: messageDraft.trim() });
     setMessageDraft('');
   }
 
-  function handleConfirmRead() {
-    if (!activeRequest || !session) return;
-
-    patchRequest(
-      activeRequest.id,
-      { clientConfirmedAt: currentStamp(), status: 'agendada' },
-      `${session.name} confirmou o recebimento da agenda`
-    );
+  async function handleConfirmRead() {
+    if (!activeRequest) return;
+    await patchRequest(activeRequest.id, {
+      clientConfirmedAt: currentStamp(),
+      status: 'agendada'
+    });
   }
 
-  function handleResetClientPin(id: string) {
-    const target = requests.find((request) => request.id === id);
-    if (!target) return;
-
-    setAccounts((current) =>
-      current.map((account) =>
-        normalizeDocument(account.document) === normalizeDocument(target.document)
-          ? { ...account, pin: '0000', mustChangePin: true }
-          : account
-      )
-    );
-
-    patchRequest(id, { pinStatus: 'reset' }, 'PIN do cliente redefinido para o acesso inicial 0000');
+  async function handleResetClientPin() {
+    if (!activeRequest) return;
+    await patchRequest(activeRequest.id, { pinStatus: 'reset' });
   }
-
-  const dashboardTitle = session ? `${roleLabels[session.role]} em operação` : 'Portal de acesso';
 
   const operationalSignals = [
     { label: 'Solicitações ativas', value: String(requests.length) },
@@ -254,6 +250,27 @@ function App() {
     { label: 'Mensagens novas', value: String(requests.reduce((total, request) => total + request.messages.length, 0)) },
     { label: 'PIN inicial', value: '0000' }
   ];
+
+  const dashboardTitle = session ? `${roleLabels[session.role]} em operação` : 'Portal de acesso';
+
+  if (loading) {
+    return (
+      <div className="app-shell">
+        <aside className="hero-panel">
+          <div className="brand-lockup">
+            <span className="brand-mark">T</span>
+            <div>
+              <p className="eyebrow">Transporter</p>
+              <h1>Carregando operação...</h1>
+            </div>
+          </div>
+        </aside>
+        <main className="content-panel">
+          <section className="glass-card">Aguarde um instante.</section>
+        </main>
+      </div>
+    );
+  }
 
   if (!session) {
     return (
@@ -321,15 +338,20 @@ function App() {
             <form className="login-form" onSubmit={handleLogin}>
               <label>
                 <span>CPF/CNPJ</span>
-                  <input
-                    value={loginDocument}
-                    onChange={(event) => setLoginDocument(formatDocument(event.target.value))}
-                    placeholder="Digite o CPF ou CNPJ"
-                  />
+                <input
+                  value={loginDocument}
+                  onChange={(event) => setLoginDocument(formatDocument(event.target.value))}
+                  placeholder="Digite o CPF ou CNPJ"
+                />
               </label>
               <label>
                 <span>PIN inicial</span>
-                <input value={loginPin} onChange={(event) => setLoginPin(event.target.value)} type="password" inputMode="numeric" />
+                <input
+                  value={loginPin}
+                  onChange={(event) => setLoginPin(event.target.value)}
+                  type="password"
+                  inputMode="numeric"
+                />
               </label>
               {loginError ? <p className="form-error">{loginError}</p> : null}
               <button className="cta" type="submit">
@@ -429,11 +451,23 @@ function App() {
             <form className="pin-form" onSubmit={handleChangePin}>
               <label>
                 <span>Novo PIN</span>
-                <input value={pinDraft} onChange={(event) => setPinDraft(event.target.value)} type="password" inputMode="numeric" placeholder="Crie um PIN novo" />
+                <input
+                  value={pinDraft}
+                  onChange={(event) => setPinDraft(event.target.value)}
+                  type="password"
+                  inputMode="numeric"
+                  placeholder="Crie um PIN novo"
+                />
               </label>
               <label>
                 <span>Confirmar PIN</span>
-                <input value={pinConfirm} onChange={(event) => setPinConfirm(event.target.value)} type="password" inputMode="numeric" placeholder="Repita o PIN" />
+                <input
+                  value={pinConfirm}
+                  onChange={(event) => setPinConfirm(event.target.value)}
+                  type="password"
+                  inputMode="numeric"
+                  placeholder="Repita o PIN"
+                />
               </label>
               <button className="cta" type="submit">
                 Salvar novo PIN
@@ -441,6 +475,12 @@ function App() {
             </form>
           </section>
         )}
+
+        {appError ? (
+          <section className="glass-card alert-card">
+            <p className="form-error">{appError}</p>
+          </section>
+        ) : null}
 
         <section className="grid profiles-grid">
           {profiles.map((profile) => (
@@ -464,11 +504,7 @@ function App() {
               </div>
               <form className="request-form" onSubmit={handleCreateRequest}>
                 <input placeholder="Nome do cliente" value={requestForm.clientName} onChange={(event) => setRequestForm({ ...requestForm, clientName: event.target.value })} />
-                <input
-                  placeholder="CPF/CNPJ"
-                  value={requestForm.document}
-                  onChange={(event) => setRequestForm({ ...requestForm, document: formatDocument(event.target.value) })}
-                />
+                <input placeholder="CPF/CNPJ" value={requestForm.document} onChange={(event) => setRequestForm({ ...requestForm, document: formatDocument(event.target.value) })} />
                 <input placeholder="Telefone" value={requestForm.phone} onChange={(event) => setRequestForm({ ...requestForm, phone: event.target.value })} />
                 <input placeholder="Destino" value={requestForm.destination} onChange={(event) => setRequestForm({ ...requestForm, destination: event.target.value })} />
                 <input placeholder="Local de embarque" value={requestForm.boardingPoint} onChange={(event) => setRequestForm({ ...requestForm, boardingPoint: event.target.value })} />
@@ -541,23 +577,23 @@ function App() {
                 <div className="assignment-grid">
                   <label>
                     <span>Motorista</span>
-                    <input value={activeRequest.driver} onChange={(event) => patchRequest(activeRequest.id, { driver: event.target.value }, 'Motorista atribuído')} />
+                    <input value={activeRequest.driver} onChange={(event) => patchRequest(activeRequest.id, { driver: event.target.value })} />
                   </label>
                   <label>
                     <span>Veículo</span>
-                    <input value={activeRequest.vehicle} onChange={(event) => patchRequest(activeRequest.id, { vehicle: event.target.value }, 'Veículo atribuído')} />
+                    <input value={activeRequest.vehicle} onChange={(event) => patchRequest(activeRequest.id, { vehicle: event.target.value })} />
                   </label>
                   <label>
                     <span>Saída</span>
-                    <input value={activeRequest.departureAt} onChange={(event) => patchRequest(activeRequest.id, { departureAt: event.target.value }, 'Horário de saída ajustado')} />
+                    <input value={activeRequest.departureAt} onChange={(event) => patchRequest(activeRequest.id, { departureAt: event.target.value })} />
                   </label>
                   <label>
                     <span>Chegada prevista</span>
-                    <input value={activeRequest.arrivalEta} onChange={(event) => patchRequest(activeRequest.id, { arrivalEta: event.target.value }, 'ETA ajustado')} />
+                    <input value={activeRequest.arrivalEta} onChange={(event) => patchRequest(activeRequest.id, { arrivalEta: event.target.value })} />
                   </label>
                   <label>
                     <span>Status</span>
-                    <select value={activeRequest.status} onChange={(event) => patchRequest(activeRequest.id, { status: event.target.value as TripRequest['status'] }, 'Status operacional atualizado')}>
+                    <select value={activeRequest.status} onChange={(event) => patchRequest(activeRequest.id, { status: event.target.value as RequestStatus })}>
                       <option value="rascunho">rascunho</option>
                       <option value="em_atendimento">em_atendimento</option>
                       <option value="aguardando_distribuicao">aguardando_distribuicao</option>
@@ -569,10 +605,7 @@ function App() {
                   </label>
                   <label>
                     <span>Telefone visível</span>
-                    <select
-                      value={activeRequest.phoneVisible ? 'sim' : 'nao'}
-                      onChange={(event) => patchRequest(activeRequest.id, { phoneVisible: event.target.value === 'sim' }, 'Visibilidade do telefone ajustada')}
-                    >
+                    <select value={activeRequest.phoneVisible ? 'sim' : 'nao'} onChange={(event) => patchRequest(activeRequest.id, { phoneVisible: event.target.value === 'sim' })}>
                       <option value="sim">sim</option>
                       <option value="nao">nao</option>
                     </select>
@@ -580,7 +613,7 @@ function App() {
                 </div>
                 <label className="full-width">
                   <span>Observações</span>
-                  <textarea value={activeRequest.notes} onChange={(event) => patchRequest(activeRequest.id, { notes: event.target.value }, 'Observações da gerência atualizadas')} />
+                  <textarea value={activeRequest.notes} onChange={(event) => patchRequest(activeRequest.id, { notes: event.target.value })} />
                 </label>
               </div>
             ) : null}
@@ -624,7 +657,7 @@ function App() {
                   <p><strong>Documento:</strong> {formatDocument(activeRequest.document)}</p>
                   <p><strong>Telefone:</strong> {activeRequest.phoneVisible ? activeRequest.phone : 'oculto'}</p>
                   <p><strong>Embarque:</strong> {activeRequest.boardingPoint}</p>
-                  <p><strong>Destinos:</strong> {activeRequest.destination}</p>
+                  <p><strong>Destino:</strong> {activeRequest.destination}</p>
                   <p><strong>Acompanhantes / carga:</strong> {activeRequest.companions}</p>
                   <a className="cta" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activeRequest.boardingPoint)}`} target="_blank" rel="noreferrer">
                     Abrir mapa
@@ -699,7 +732,7 @@ function App() {
                   </button>
                 ) : null}
                 {session.role !== 'cliente' ? (
-                  <button className="cta ghost" type="button" onClick={() => handleResetClientPin(activeRequest.id)}>
+                  <button className="cta ghost" type="button" onClick={handleResetClientPin}>
                     Resetar PIN do cliente
                   </button>
                 ) : null}
@@ -761,14 +794,15 @@ function App() {
               <h2>Usuários com PIN inicial</h2>
             </div>
             <div className="admin-grid">
-              {accounts.map((account) => (
-                <article className="admin-card" key={account.document}>
-                  <strong>{account.name}</strong>
-                  <p>{roleLabels[account.role]}</p>
-                  <small>Documento {formatDocument(account.document)}</small>
-                  <small>{account.mustChangePin ? 'Troca de PIN pendente' : 'PIN alterado'}</small>
-                </article>
-              ))}
+              {requests.length
+                ? [...new Map(requests.map((request) => [request.document, request])).values()].map((request) => (
+                    <article className="admin-card" key={request.document}>
+                      <strong>{request.clientName}</strong>
+                      <p>{request.document}</p>
+                      <small>Viagens vinculadas</small>
+                    </article>
+                  ))
+                : null}
             </div>
           </section>
         ) : null}

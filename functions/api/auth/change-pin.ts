@@ -39,7 +39,6 @@ export async function onRequestPost({ request, env }: { request: Request; env: E
       await sha256Hex(newPin),
       session.user_id
     ),
-    env.DB.prepare('DELETE FROM sessions WHERE user_id = ? AND token_hash = ?').bind(session.user_id, tokenHash)
   ]);
 
   return json({ ok: true, mustChangePin: false });
