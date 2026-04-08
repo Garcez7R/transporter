@@ -22,6 +22,10 @@ Plataforma web com suporte a PWA para gestão de transporte e logística de pass
 npm install
 npm run dev
 npm run build
+npm run cf:login
+npm run cf:d1:create
+npm run cf:d1:apply
+npm run cf:deploy
 ```
 
 ## Acesso inicial
@@ -32,7 +36,16 @@ npm run build
 
 ## Próximos passos sugeridos
 
-1. Ligar o projeto a um banco `D1` real.
-2. Implementar autenticação por `CPF/CNPJ + PIN`.
-3. Criar as telas de `operador`, `gerente`, `motorista` e `cliente`.
-4. Adicionar rotas de mensagens, histórico e auditoria.
+1. Rodar `npm run cf:d1:create` e colar o `database_id` gerado em [wrangler.toml](/home/rgarcez/Documentos/transporter/wrangler.toml).
+2. Aplicar schema e seed com `npm run cf:d1:apply`.
+3. Conectar o repositório GitHub ao projeto Pages no Cloudflare apontando para `main`.
+4. Publicar com `npm run cf:deploy` ou deixar o Pages fazer o deploy automático via GitHub.
+
+## Cloudflare
+
+Arquivos já preparados:
+
+- [wrangler.toml](/home/rgarcez/Documentos/transporter/wrangler.toml)
+- [functions/](/home/rgarcez/Documentos/transporter/functions)
+- [d1/migrations/0001_init.sql](/home/rgarcez/Documentos/transporter/d1/migrations/0001_init.sql)
+- [d1/migrations/0002_seed.sql](/home/rgarcez/Documentos/transporter/d1/migrations/0002_seed.sql)

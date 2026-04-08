@@ -7,7 +7,12 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "check": "tsc -b --pretty false"
+    "check": "tsc -b --pretty false",
+    "cf:login": "npx wrangler login",
+    "cf:d1:create": "npx wrangler d1 create transporter",
+    "cf:d1:apply": "npx wrangler d1 migrations apply transporter",
+    "cf:dev": "npm run build && npx wrangler pages dev dist",
+    "cf:deploy": "npm run build && npx wrangler pages deploy dist --project-name transporter"
   },
   "dependencies": {
     "react": "^19.1.0",
