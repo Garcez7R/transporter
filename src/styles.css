@@ -997,6 +997,11 @@ select {
   outline: none;
 }
 
+select option {
+  color: #0b1220;
+  background: #f2f4f7;
+}
+
 textarea {
   min-height: 108px;
   resize: vertical;

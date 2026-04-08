@@ -66,7 +66,7 @@ function App() {
   const [session, setSession] = useState<SessionUser | null>(() => readJson<SessionUser | null>(SESSION_KEY, null));
   const [requests, setRequests] = useState<TripRequest[]>([]);
   const [loginDocument, setLoginDocument] = useState('');
-  const [loginPin, setLoginPin] = useState('0000');
+  const [loginPin, setLoginPin] = useState('');
   const [loginError, setLoginError] = useState('');
   const [banner, setBanner] = useState<BannerState | null>(null);
   const [toasts, setToasts] = useState<ToastState[]>([]);
@@ -225,7 +225,7 @@ function App() {
 
       setSession(nextSession);
       writeJson(SESSION_KEY, nextSession);
-      setLoginPin('0000');
+      setLoginPin('');
       setPinDraft('');
       setPinConfirm('');
       await refreshRequests(nextSession.token);
@@ -530,8 +530,10 @@ function App() {
                 <input
                   value={loginPin}
                   onChange={(event) => setLoginPin(event.target.value)}
+                  onFocus={(event) => event.currentTarget.select()}
                   type="password"
                   inputMode="numeric"
+                  placeholder="****"
                 />
               </label>
               {loginError ? <p className="form-error">{loginError}</p> : null}
