@@ -783,6 +783,14 @@ h1 {
   gap: 18px;
 }
 
+.patient-header .brand-lockup h2 {
+  margin: 0;
+}
+
+.patient-header .profile-summary {
+  margin-top: 8px;
+}
+
 .action-cards {
   align-items: stretch;
 }

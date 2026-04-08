@@ -289,6 +289,7 @@ function App() {
 
     try {
       await updateRequest(id, patch, session.token);
+      setBanner(null);
       await refreshRequests(session.token);
     } catch (error) {
       showBanner('error', error instanceof Error ? error.message : 'Não foi possível atualizar a solicitação.');
@@ -308,12 +309,14 @@ function App() {
       clientConfirmedAt: currentStamp(),
       status: 'agendada'
     });
+    setBanner(null);
     pushToast('success', 'Confirmação registrada.');
   }
 
   async function handleResetClientPin() {
     if (!activeRequest) return;
     await patchRequest(activeRequest.id, { pinStatus: 'reset' });
+    setBanner(null);
     pushToast('success', 'PIN resetado para 0000.');
   }
 
@@ -590,64 +593,7 @@ function App() {
         !isPatientSession ? 'saas-app-shell internal-shell' : ''
       }`}
     >
-      {isPatientSession ? (
-        <aside className="hero-panel hero-panel-v2">
-          <div className="brand-lockup">
-            <span className="brand-mark">T</span>
-            <div>
-              <p className="eyebrow">Transporter</p>
-              <h1>{dashboardTitle}</h1>
-            </div>
-          </div>
-
-          <p className="hero-copy">
-            {roleDescriptions[session.role]} O acesso está vinculado ao CPF {formatDocument(session.document)}.
-          </p>
-
-          <div className="profile-summary">
-            <div className="profile-avatar">{session.name.slice(0, 2).toUpperCase()}</div>
-            <div>
-              <strong>{session.name}</strong>
-              <span>{roleLabels[session.role]}</span>
-            </div>
-          </div>
-
-          <div className="hero-stats stats-v2">
-            <div>
-              <strong>{visibleRequests.length}</strong>
-              <span>solicitações visíveis</span>
-            </div>
-            <div>
-              <strong>{session.mustChangePin ? 'Troca pendente' : 'PIN atualizado'}</strong>
-              <span>{session.mustChangePin ? 'Primeiro acesso' : 'Sessão ativa'}</span>
-            </div>
-            <div>
-              <strong>{profileMap[session.role]}</strong>
-              <span>itens do perfil</span>
-            </div>
-          </div>
-
-          <section className="glass-card signal-card">
-            <div className="section-head">
-              <p className="eyebrow">Sinais operacionais</p>
-              <h2>Status rápido</h2>
-            </div>
-            <div className="signals signals-v2">
-              {operationalSignals.map((signal) => (
-                <div key={signal.label}>
-                  <strong>{signal.value}</strong>
-                  <span>{signal.label}</span>
-                </div>
-              ))}
-            </div>
-            {!isStandalone ? (
-              <button className="cta ghost install-cta" type="button" onClick={handleInstallApp} disabled={!installPrompt}>
-                {installPrompt ? 'Instalar app' : 'Instalação disponível quando o navegador permitir'}
-              </button>
-            ) : null}
-          </section>
-        </aside>
-      ) : (
+      {isPatientSession ? null : (
         <aside className="saas-sidebar">
           <div className="saas-sidebar-panel">
             <div className="saas-sidebar-brand">
@@ -760,6 +706,28 @@ function App() {
             </button>
           </div>
         </header>
+
+        {isPatientSession ? (
+          <section className="glass-card panel-card patient-header">
+            <div className="brand-lockup">
+              <span className="brand-mark">T</span>
+              <div>
+                <p className="eyebrow">Transporter</p>
+                <h2>Portal do paciente</h2>
+              </div>
+            </div>
+            <p className="hero-copy">
+              {roleDescriptions[session.role]} O acesso está vinculado ao CPF {formatDocument(session.document)}.
+            </p>
+            <div className="profile-summary">
+              <div className="profile-avatar">{session.name.slice(0, 2).toUpperCase()}</div>
+              <div>
+                <strong>{session.name}</strong>
+                <span>{roleLabels[session.role]}</span>
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         {!isPatientSession ? (
           <section className="glass-card panel-card" id="visao">
