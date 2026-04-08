@@ -339,6 +339,14 @@ function App() {
     motorista: requests.filter((request) => request.driver.toLowerCase() === session?.name.toLowerCase()).length,
     administrador: users.length
   };
+  const isFiltered = Boolean(requestFilter.trim());
+  const requestEmptyText = isFiltered
+    ? 'Nenhuma solicitação corresponde ao filtro aplicado.'
+    : session?.role === 'motorista'
+      ? 'Nenhuma viagem atribuída até agora.'
+      : session?.role === 'cliente'
+        ? 'Nenhuma viagem registrada para este CPF.'
+        : 'Nenhuma solicitação registrada no momento.';
 
   if (loading) {
     return (
@@ -351,9 +359,21 @@ function App() {
               <h1>Carregando operação...</h1>
             </div>
           </div>
+          <div className="skeleton-block">
+            <div className="skeleton-line"></div>
+            <div className="skeleton-line wide"></div>
+            <div className="skeleton-line"></div>
+          </div>
         </aside>
         <main className="content-panel">
-          <section className="glass-card">Aguarde um instante.</section>
+          <section className="glass-card">
+            <div className="skeleton-grid">
+              <div className="skeleton-line wide"></div>
+              <div className="skeleton-line"></div>
+              <div className="skeleton-line"></div>
+              <div className="skeleton-line wide"></div>
+            </div>
+          </section>
         </main>
       </div>
     );
@@ -421,7 +441,7 @@ function App() {
           <header className="topbar topbar-v2">
             <div>
               <p className="eyebrow">Acesso seguro</p>
-              <h2>Entre com documento e PIN</h2>
+              <h2>Entre com CPF e PIN</h2>
             </div>
             <div className="topbar-note">
               <strong>PIN inicial</strong>
@@ -642,23 +662,31 @@ function App() {
                 <input placeholder="Filtrar por paciente, protocolo ou destino" value={requestFilter} onChange={(event) => setRequestFilter(event.target.value)} />
               </div>
               <div className="request-list">
-                {visibleRequests.map((request) => (
-                  <article className={`request-row ${request.id === activeRequestId ? 'request-selected' : ''}`} key={request.id} onClick={() => setActiveRequestId(request.id)}>
-                    <div>
-                      <strong>{request.protocol}</strong>
-                      <p>
-                        {request.clientName} · {request.destination}
-                      </p>
-                      <small>
-                        {request.boardingPoint} · {request.departureAt}
-                      </small>
-                    </div>
-                    <div className="request-meta">
-                      <span className={`status status-${request.status}`}>{request.status}</span>
-                      <small>{request.phone}</small>
-                    </div>
-                  </article>
-                ))}
+                {visibleRequests.length ? (
+                  visibleRequests.map((request) => (
+                    <article className={`request-row ${request.id === activeRequestId ? 'request-selected' : ''}`} key={request.id} onClick={() => setActiveRequestId(request.id)}>
+                      <div>
+                        <strong>{request.protocol}</strong>
+                        <p>
+                          {request.clientName} · {request.destination}
+                        </p>
+                        <small>
+                          {request.boardingPoint} · {request.departureAt}
+                        </small>
+                      </div>
+                      <div className="request-meta">
+                        <span className={`status status-${request.status}`}>{request.status}</span>
+                        <small>{request.phone}</small>
+                      </div>
+                    </article>
+                  ))
+                ) : (
+                  <div className="empty-state">
+                    <div className="empty-icon"></div>
+                    <strong>Solicitações vazias</strong>
+                    <p>{requestEmptyText}</p>
+                  </div>
+                )}
               </div>
             </article>
           </section>
@@ -671,13 +699,21 @@ function App() {
               <h2>Configuração operacional da viagem</h2>
             </div>
             <div className="manager-grid">
-              {visibleRequests.map((request) => (
-                <article className={`manager-card ${request.id === activeRequestId ? 'request-selected' : ''}`} key={request.id} onClick={() => setActiveRequestId(request.id)}>
-                  <strong>{request.protocol}</strong>
-                  <p>{request.clientName}</p>
-                  <small>{request.destination}</small>
-                </article>
-              ))}
+              {visibleRequests.length ? (
+                visibleRequests.map((request) => (
+                  <article className={`manager-card ${request.id === activeRequestId ? 'request-selected' : ''}`} key={request.id} onClick={() => setActiveRequestId(request.id)}>
+                    <strong>{request.protocol}</strong>
+                    <p>{request.clientName}</p>
+                    <small>{request.destination}</small>
+                  </article>
+                ))
+              ) : (
+                <div className="empty-state">
+                  <div className="empty-icon"></div>
+                  <strong>Sem viagens para distribuir</strong>
+                  <p>Assim que o operador registrar uma solicitação ela aparecerá aqui.</p>
+                </div>
+              )}
             </div>
 
             {activeRequest ? (
@@ -743,21 +779,29 @@ function App() {
                 <h2>Viagens atribuídas</h2>
               </div>
               <div className="request-list">
-                {visibleRequests.map((request) => (
-                  <article className={`request-row ${request.id === activeRequestId ? 'request-selected' : ''}`} key={request.id} onClick={() => setActiveRequestId(request.id)}>
-                    <div>
-                      <strong>{request.clientName}</strong>
-                      <p>{request.destination}</p>
-                      <small>
-                        {request.boardingPoint} · {request.departureAt}
-                      </small>
-                    </div>
-                    <div className="request-meta">
-                      <span className={`status status-${request.status}`}>{request.status}</span>
-                      <small>{request.vehicle || 'Sem veículo'}</small>
-                    </div>
-                  </article>
-                ))}
+                {visibleRequests.length ? (
+                  visibleRequests.map((request) => (
+                    <article className={`request-row ${request.id === activeRequestId ? 'request-selected' : ''}`} key={request.id} onClick={() => setActiveRequestId(request.id)}>
+                      <div>
+                        <strong>{request.clientName}</strong>
+                        <p>{request.destination}</p>
+                        <small>
+                          {request.boardingPoint} · {request.departureAt}
+                        </small>
+                      </div>
+                      <div className="request-meta">
+                        <span className={`status status-${request.status}`}>{request.status}</span>
+                        <small>{request.vehicle || 'Sem veículo'}</small>
+                      </div>
+                    </article>
+                  ))
+                ) : (
+                  <div className="empty-state">
+                    <div className="empty-icon"></div>
+                    <strong>Agenda livre</strong>
+                    <p>{requestEmptyText}</p>
+                  </div>
+                )}
               </div>
             </article>
 
@@ -790,24 +834,32 @@ function App() {
               <h2>{session.role === 'cliente' ? 'Minhas viagens' : 'Visão global'}</h2>
             </div>
             <div className="request-list">
-              {visibleRequests.map((request) => (
-                <article className={`request-row ${request.id === activeRequestId ? 'request-selected' : ''}`} key={request.id} onClick={() => setActiveRequestId(request.id)}>
-                  <div>
-                    <strong>{request.protocol}</strong>
-                    <p>
-                      {request.clientName} · {request.destination}
-                    </p>
-                    <small>
-                      Embarque: {request.boardingPoint} · Saída: {request.departureAt}
-                    </small>
-                  </div>
-                  <div className="request-meta">
-                    <span className={`status status-${request.status}`}>{request.status}</span>
-                    <small>{request.driver || 'Sem motorista'}</small>
-                    <small>{request.vehicle || 'Sem veículo'}</small>
-                  </div>
-                </article>
-              ))}
+              {visibleRequests.length ? (
+                visibleRequests.map((request) => (
+                  <article className={`request-row ${request.id === activeRequestId ? 'request-selected' : ''}`} key={request.id} onClick={() => setActiveRequestId(request.id)}>
+                    <div>
+                      <strong>{request.protocol}</strong>
+                      <p>
+                        {request.clientName} · {request.destination}
+                      </p>
+                      <small>
+                        Embarque: {request.boardingPoint} · Saída: {request.departureAt}
+                      </small>
+                    </div>
+                    <div className="request-meta">
+                      <span className={`status status-${request.status}`}>{request.status}</span>
+                      <small>{request.driver || 'Sem motorista'}</small>
+                      <small>{request.vehicle || 'Sem veículo'}</small>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <div className="empty-state">
+                  <div className="empty-icon"></div>
+                  <strong>Nenhuma viagem encontrada</strong>
+                  <p>{requestEmptyText}</p>
+                </div>
+              )}
             </div>
           </section>
         )}
@@ -854,24 +906,40 @@ function App() {
               </div>
 
               <div className="messages-stack">
-                {activeRequest.messages.map((message) => (
-                  <article className={`message-item ${message.internal ? 'internal' : 'external'}`} key={message.id}>
-                    <div className="message-head">
-                      <strong>{message.author}</strong>
-                      <span>{message.at}</span>
-                    </div>
-                    <p>{message.body}</p>
-                  </article>
-                ))}
+                {activeRequest.messages.length ? (
+                  activeRequest.messages.map((message) => (
+                    <article className={`message-item ${message.internal ? 'internal' : 'external'}`} key={message.id}>
+                      <div className="message-head">
+                        <strong>{message.author}</strong>
+                        <span>{message.at}</span>
+                      </div>
+                      <p>{message.body}</p>
+                    </article>
+                  ))
+                ) : (
+                  <div className="empty-state compact">
+                    <div className="empty-icon"></div>
+                    <strong>Sem mensagens</strong>
+                    <p>Quando houver comunicação, ela aparecerá aqui.</p>
+                  </div>
+                )}
               </div>
 
               <div className="audit-stack">
-                {activeRequest.audit.map((item) => (
-                  <div className="audit-item" key={item.id}>
-                    <strong>{item.label}</strong>
-                    <span>{item.at}</span>
+                {activeRequest.audit.length ? (
+                  activeRequest.audit.map((item) => (
+                    <div className="audit-item" key={item.id}>
+                      <strong>{item.label}</strong>
+                      <span>{item.at}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="empty-state compact">
+                    <div className="empty-icon"></div>
+                    <strong>Sem auditoria</strong>
+                    <p>As mudanças relevantes serão registradas aqui.</p>
                   </div>
-                ))}
+                )}
               </div>
             </article>
           </section>
@@ -928,14 +996,22 @@ function App() {
               </button>
             </form>
             <div className="admin-grid">
-              {users.map((user) => (
-                <article className="admin-card" key={user.id}>
-                  <strong>{user.name}</strong>
-                  <p>{roleLabels[user.role as AccessRole] ?? user.role}</p>
-                  <small>{formatDocument(user.document)}</small>
-                  <small>{user.pinMustChange ? 'PIN inicial pendente' : 'PIN alterado'}</small>
-                </article>
-              ))}
+              {users.length ? (
+                users.map((user) => (
+                  <article className="admin-card" key={user.id}>
+                    <strong>{user.name}</strong>
+                    <p>{roleLabels[user.role as AccessRole] ?? user.role}</p>
+                    <small>{formatDocument(user.document)}</small>
+                    <small>{user.pinMustChange ? 'PIN inicial pendente' : 'PIN alterado'}</small>
+                  </article>
+                ))
+              ) : (
+                <div className="empty-state">
+                  <div className="empty-icon"></div>
+                  <strong>Nenhum usuário cadastrado</strong>
+                  <p>Cadastre o primeiro operador, gerente, motorista ou paciente.</p>
+                </div>
+              )}
             </div>
           </section>
         ) : null}

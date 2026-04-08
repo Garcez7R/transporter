@@ -144,6 +144,33 @@ h1 {
   color: var(--muted);
 }
 
+.skeleton-block,
+.skeleton-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.skeleton-line {
+  height: 12px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.08));
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease infinite;
+}
+
+.skeleton-line.wide {
+  height: 16px;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
 .hero-copy {
   max-width: 58ch;
   font-size: 1.05rem;
@@ -535,6 +562,39 @@ h1 {
 .audit-stack {
   display: grid;
   gap: 12px;
+}
+
+.empty-state {
+  display: grid;
+  gap: 8px;
+  padding: 20px;
+  border-radius: 18px;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.02);
+  text-align: left;
+}
+
+.empty-state.compact {
+  padding: 16px;
+}
+
+.empty-state strong {
+  font-size: 1rem;
+}
+
+.empty-state p {
+  margin-bottom: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.empty-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background:
+    linear-gradient(145deg, rgba(125, 224, 213, 0.2), rgba(140, 184, 255, 0.18));
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .request-row,
