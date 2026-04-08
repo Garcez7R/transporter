@@ -37,6 +37,8 @@ export interface MessageItem {
 export interface AuditItem {
   id: string;
   label: string;
+  details?: string;
+  actor?: string;
   at: string;
 }
 

@@ -1,6 +1,7 @@
 import { json } from '../_shared/response';
 import { getSession } from '../_shared/session';
 import { sha256Hex } from '../_shared/security';
+import { logAudit } from '../_shared/audit';
 import type { Env } from '../_shared/types';
 
 type UserRole = 'cliente' | 'operador' | 'gerente' | 'motorista' | 'administrador';
@@ -67,6 +68,15 @@ export async function onRequestPost({ request, env }: { request: Request; env: E
   )
     .bind(body.role, body.name, document, await sha256Hex(pin))
     .run();
+
+  await logAudit(env, {
+    entityType: 'user',
+    action: 'user.created',
+    details: `Usuário ${body.name} (${body.role}).`,
+    actorRole: session.role,
+    actorName: session.name,
+    actorId: session.user_id
+  });
 
   return json({
     ok: true,

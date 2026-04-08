@@ -1,5 +1,6 @@
 import { json } from '../_shared/response';
 import { getSession } from '../_shared/session';
+import { logAudit } from '../_shared/audit';
 import type { Env } from '../_shared/types';
 
 type CreateRequestBody = {
@@ -43,6 +44,8 @@ type RequestRow = {
   audit: Array<{
     id: number;
     label: string;
+    details?: string;
+    actor?: string;
     at: string;
   }>;
 };
@@ -61,6 +64,7 @@ async function mapRequestRows(env: Env, rows: Array<Record<string, unknown>>) {
 
   const messages: Array<Record<string, unknown>> = [];
   const audit: Array<Record<string, unknown>> = [];
+  const auditLog: Array<Record<string, unknown>> = [];
 
   if (env.DB && requestIds.length) {
     const placeholderList = requestIds.map(() => '?').join(', ');
@@ -75,7 +79,7 @@ async function mapRequestRows(env: Env, rows: Array<Record<string, unknown>>) {
       .all();
 
     const auditResult = await env.DB.prepare(
-      `SELECT id, trip_request_id, next_status AS label, created_at AS at
+      `SELECT id, trip_request_id, next_status AS label, created_at AS at, changed_by_role AS role, changed_by_name AS name
        FROM status_history
        WHERE trip_request_id IN (${placeholderList})
        ORDER BY created_at DESC`
@@ -83,14 +87,47 @@ async function mapRequestRows(env: Env, rows: Array<Record<string, unknown>>) {
       .bind(...requestIds)
       .all();
 
+    let auditLogResult: { results?: Array<Record<string, unknown>> } = {};
+    try {
+      auditLogResult = await env.DB.prepare(
+        `SELECT id, trip_request_id, action, details, actor_role, actor_name, created_at AS at
+         FROM audit_log
+         WHERE trip_request_id IN (${placeholderList})
+         ORDER BY created_at DESC`
+      )
+        .bind(...requestIds)
+        .all();
+    } catch {
+      auditLogResult = {};
+    }
+
     messages.push(...((messageResult.results ?? []) as Array<Record<string, unknown>>));
     audit.push(...((auditResult.results ?? []) as Array<Record<string, unknown>>));
+    auditLog.push(...((auditLogResult.results ?? []) as Array<Record<string, unknown>>));
   }
 
   return rows.map((row) => {
     const id = Number(row.id);
     const rowMessages = messages.filter((item) => Number(item.trip_request_id) === id);
     const rowAudit = audit.filter((item) => Number(item.trip_request_id) === id);
+    const rowAuditLog = auditLog.filter((item) => Number(item.trip_request_id) === id);
+
+    const mappedAudit = [
+      ...rowAuditLog.map((item) => ({
+        id: Number(item.id),
+        label: String(item.action),
+        details: item.details ? String(item.details) : undefined,
+        actor: item.actor_name ? `${String(item.actor_name)} (${String(item.actor_role)})` : undefined,
+        at: String(item.at)
+      })),
+      ...rowAudit.map((item) => ({
+        id: Number(item.id),
+        label: String(item.label),
+        details: undefined,
+        actor: item.name ? `${String(item.name)} (${String(item.role)})` : undefined,
+        at: String(item.at)
+      }))
+    ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 
     return {
       id: String(row.id),
@@ -118,11 +155,7 @@ async function mapRequestRows(env: Env, rows: Array<Record<string, unknown>>) {
         at: String(message.at),
         internal: Number(message.internal)
       })),
-      audit: rowAudit.map((item) => ({
-        id: Number(item.id),
-        label: String(item.label),
-        at: String(item.at)
-      }))
+      audit: mappedAudit
     } as unknown as RequestRow;
   });
 }
@@ -188,6 +221,14 @@ export async function onRequestPost({ request, env }: { request: Request; env: E
     );
   }
 
+  if (!session) {
+    return json({ ok: false, error: 'Sessão não informada.' }, { status: 401 });
+  }
+
+  if (!['operador', 'gerente', 'administrador'].includes(session.role)) {
+    return json({ ok: false, error: 'Sem permissão para criar solicitações.' }, { status: 403 });
+  }
+
   if (!env.DB) {
     return json({
       ok: true,
@@ -230,6 +271,15 @@ export async function onRequestPost({ request, env }: { request: Request; env: E
         1
       )
       .run();
+
+    await logAudit(env, {
+      entityType: 'user',
+      action: 'user.created',
+      details: `Paciente criado a partir de solicitação (${body.clientName}).`,
+      actorRole: session.role,
+      actorName: session.name,
+      actorId: session.user_id
+    });
   }
 
   const countResult = await env.DB.prepare('SELECT COUNT(*) AS total FROM trip_requests').first<{ total: number }>();
@@ -286,6 +336,16 @@ export async function onRequestPost({ request, env }: { request: Request; env: E
   )
     .bind(requestId, null, 'em_atendimento', session?.role ?? 'operador', session?.name ?? 'Equipe Operação')
     .run();
+
+  await logAudit(env, {
+    tripRequestId: requestId,
+    entityType: 'trip_request',
+    action: 'request.created',
+    details: `Protocolo ${protocol} para ${body.clientName}.`,
+    actorRole: session.role,
+    actorName: session.name,
+    actorId: session.user_id
+  });
 
   return json({ ok: true, row: { id: requestId, protocol } });
 }

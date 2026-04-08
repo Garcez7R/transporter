@@ -1,5 +1,6 @@
 import { json } from '../../_shared/response';
 import { createSessionToken, sha256Hex } from '../../_shared/security';
+import { logAudit } from '../../_shared/audit';
 import type { Env } from '../../_shared/types';
 
 type LoginBody = {
@@ -67,6 +68,15 @@ export async function onRequestPost({ request, env }: { request: Request; env: E
     ),
     env.DB.prepare('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?').bind(user.id)
   ]);
+
+  await logAudit(env, {
+    entityType: 'session',
+    action: 'auth.login',
+    details: `Login de ${user.name} (${user.role}).`,
+    actorRole: user.role,
+    actorName: user.name,
+    actorId: user.id
+  });
 
   return json({
     ok: true,

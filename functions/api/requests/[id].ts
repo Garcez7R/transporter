@@ -1,6 +1,7 @@
 import { json } from '../../_shared/response';
 import { getSession } from '../../_shared/session';
 import { sha256Hex } from '../../_shared/security';
+import { logAudit } from '../../_shared/audit';
 import type { Env } from '../../_shared/types';
 
 type UpdateBody = {
@@ -47,6 +48,8 @@ type RequestDetail = {
   audit: Array<{
     id: number;
     label: string;
+    details?: string;
+    actor?: string;
     at: string;
   }>;
 };
@@ -99,13 +102,27 @@ async function fetchDetail(env: Env, requestId: number) {
     .all();
 
   const auditResult = await env.DB!.prepare(
-    `SELECT id, next_status AS label, created_at AS at
+    `SELECT id, next_status AS label, created_at AS at, changed_by_role AS role, changed_by_name AS name
      FROM status_history
      WHERE trip_request_id = ?
      ORDER BY created_at DESC`
   )
     .bind(requestId)
     .all();
+
+  let auditLogResult: { results?: Array<Record<string, unknown>> } = {};
+  try {
+    auditLogResult = await env.DB!.prepare(
+      `SELECT id, action, details, actor_role, actor_name, created_at AS at
+       FROM audit_log
+       WHERE trip_request_id = ?
+       ORDER BY created_at DESC`
+    )
+      .bind(requestId)
+      .all();
+  } catch {
+    auditLogResult = {};
+  }
 
   return {
     id: String(row.id),
@@ -133,11 +150,22 @@ async function fetchDetail(env: Env, requestId: number) {
       at: String((item as Record<string, unknown>).at),
       internal: Number((item as Record<string, unknown>).internal)
     })),
-    audit: (auditResult.results ?? []).map((item) => ({
-      id: Number((item as Record<string, unknown>).id),
-      label: String((item as Record<string, unknown>).label),
-      at: String((item as Record<string, unknown>).at)
-    }))
+    audit: [
+      ...((auditLogResult.results ?? []) as Array<Record<string, unknown>>).map((item) => ({
+        id: Number(item.id),
+        label: String(item.action),
+        details: item.details ? String(item.details) : undefined,
+        actor: item.actor_name ? `${String(item.actor_name)} (${String(item.actor_role)})` : undefined,
+        at: String(item.at)
+      })),
+      ...((auditResult.results ?? []) as Array<Record<string, unknown>>).map((item) => ({
+        id: Number(item.id),
+        label: String(item.label),
+        details: undefined,
+        actor: item.name ? `${String(item.name)} (${String(item.role)})` : undefined,
+        at: String(item.at)
+      }))
+    ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
   } as RequestDetail;
 }
 
@@ -187,8 +215,82 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
     return json({ ok: false, error: 'Sem permissão para editar esta solicitação.' }, { status: 403 });
   }
 
-  if (session?.role === 'motorista' && body.status && !['em_rota', 'concluida'].includes(body.status)) {
-    return json({ ok: false, error: 'Motorista só pode atualizar status operacional.' }, { status: 403 });
+  if (!session) {
+    return json({ ok: false, error: 'Sessão inválida.' }, { status: 401 });
+  }
+
+  const hasField = (value: unknown) => value !== undefined;
+  const fields = {
+    status: hasField(body.status),
+    driver: hasField(body.driver),
+    vehicle: hasField(body.vehicle),
+    notes: hasField(body.notes),
+    companions: hasField(body.companions),
+    boardingPoint: hasField(body.boardingPoint),
+    departureAt: hasField(body.departureAt),
+    arrivalEta: hasField(body.arrivalEta),
+    phoneVisible: hasField(body.phoneVisible),
+    clientConfirmedAt: hasField(body.clientConfirmedAt),
+    pinStatus: hasField(body.pinStatus),
+    message: hasField(body.message)
+  };
+
+  const role = session.role;
+  const hasDisallowed = (allowed: Array<keyof typeof fields>) =>
+    Object.entries(fields).some(([key, enabled]) => enabled && !allowed.includes(key as keyof typeof fields));
+
+  if (role === 'cliente') {
+    if (hasDisallowed(['clientConfirmedAt', 'message'])) {
+      return json({ ok: false, error: 'Paciente só pode confirmar agenda e enviar mensagens.' }, { status: 403 });
+    }
+  }
+
+  if (role === 'motorista') {
+    const allowed: Array<keyof typeof fields> = ['status', 'message'];
+    if (hasDisallowed(allowed)) {
+      return json({ ok: false, error: 'Motorista só pode atualizar status e mensagens.' }, { status: 403 });
+    }
+    if (body.status && !['em_rota', 'concluida'].includes(body.status)) {
+      return json({ ok: false, error: 'Motorista só pode atualizar status operacional.' }, { status: 403 });
+    }
+  }
+
+  if (role === 'operador') {
+    const allowed: Array<keyof typeof fields> = [
+      'status',
+      'notes',
+      'companions',
+      'boardingPoint',
+      'departureAt',
+      'arrivalEta',
+      'message',
+      'pinStatus'
+    ];
+    if (hasDisallowed(allowed)) {
+      return json({ ok: false, error: 'Operador não pode alterar motorista, veículo ou visibilidade de telefone.' }, { status: 403 });
+    }
+    if (body.status && !['em_atendimento', 'aguardando_distribuicao'].includes(body.status)) {
+      return json({ ok: false, error: 'Operador só pode mover para atendimento ou distribuição.' }, { status: 403 });
+    }
+  }
+
+  if (role === 'gerente') {
+    const allowed: Array<keyof typeof fields> = [
+      'status',
+      'driver',
+      'vehicle',
+      'notes',
+      'companions',
+      'boardingPoint',
+      'departureAt',
+      'arrivalEta',
+      'phoneVisible',
+      'message',
+      'pinStatus'
+    ];
+    if (hasDisallowed(allowed)) {
+      return json({ ok: false, error: 'Gerência não pode alterar confirmação do paciente.' }, { status: 403 });
+    }
   }
 
   const updates: string[] = [];
@@ -231,6 +333,16 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
         session?.role !== 'cliente' ? 1 : 0
       )
       .run();
+
+    await logAudit(env, {
+      tripRequestId: requestId,
+      entityType: 'trip_request',
+      action: 'message.sent',
+      details: session?.role === 'cliente' ? 'Mensagem enviada pelo paciente.' : 'Mensagem enviada pela equipe.',
+      actorRole: session?.role ?? null,
+      actorName: session?.name ?? null,
+      actorId: session?.user_id ?? null
+    });
   }
 
   if (body.status && body.status !== current.status) {
@@ -239,6 +351,16 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
     )
       .bind(requestId, current.status, body.status, session?.role ?? 'operador', session?.name ?? 'Equipe Operação')
       .run();
+
+    await logAudit(env, {
+      tripRequestId: requestId,
+      entityType: 'trip_request',
+      action: 'status.updated',
+      details: `${current.status} → ${body.status}`,
+      actorRole: session?.role ?? null,
+      actorName: session?.name ?? null,
+      actorId: session?.user_id ?? null
+    });
   }
 
   if (body.pinStatus === 'reset') {
@@ -250,6 +372,58 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
         current.document.replace(/\D/g, '')
       )
       .run();
+
+    await logAudit(env, {
+      tripRequestId: requestId,
+      entityType: 'trip_request',
+      action: 'pin.reset',
+      details: 'PIN do paciente resetado para 0000.',
+      actorRole: session?.role ?? null,
+      actorName: session?.name ?? null,
+      actorId: session?.user_id ?? null
+    });
+  }
+
+  if (body.clientConfirmedAt) {
+    await logAudit(env, {
+      tripRequestId: requestId,
+      entityType: 'trip_request',
+      action: 'agenda.confirmed',
+      details: 'Paciente confirmou o recebimento da agenda.',
+      actorRole: session?.role ?? null,
+      actorName: session?.name ?? null,
+      actorId: session?.user_id ?? null
+    });
+  }
+
+  if (body.driver !== undefined || body.vehicle !== undefined || body.departureAt !== undefined || body.arrivalEta !== undefined) {
+    await logAudit(env, {
+      tripRequestId: requestId,
+      entityType: 'trip_request',
+      action: 'dispatch.updated',
+      details: 'Distribuição e horários atualizados.',
+      actorRole: session?.role ?? null,
+      actorName: session?.name ?? null,
+      actorId: session?.user_id ?? null
+    });
+  }
+
+  const changedFields: string[] = [];
+  if (body.notes !== undefined) changedFields.push('observações');
+  if (body.companions !== undefined) changedFields.push('acompanhantes');
+  if (body.boardingPoint !== undefined) changedFields.push('embarque');
+  if (body.phoneVisible !== undefined) changedFields.push('telefone visível');
+
+  if (changedFields.length) {
+    await logAudit(env, {
+      tripRequestId: requestId,
+      entityType: 'trip_request',
+      action: 'details.updated',
+      details: `Atualizado: ${changedFields.join(', ')}.`,
+      actorRole: session?.role ?? null,
+      actorName: session?.name ?? null,
+      actorId: session?.user_id ?? null
+    });
   }
 
   return json({ ok: true });

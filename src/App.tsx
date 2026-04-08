@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { activeTrips, demoUsers, fleet, flowSteps, profiles, defaultRequestForm } from './data';
+import { demoUsers, profiles, defaultRequestForm } from './data';
 import {
   changePin,
   createRequest,
@@ -15,6 +15,17 @@ import {
 import { formatDocument, normalizeDocument, readJson, removeItem, SESSION_KEY, currentStamp, writeJson } from './lib/persistence';
 import type { AccessRole, RequestFormState, RequestStatus, SessionUser, TripRequest, UserFormState } from './types';
 import type { UserRow } from './lib/api';
+
+type BannerState = {
+  type: 'success' | 'error';
+  message: string;
+};
+
+type ToastState = {
+  id: string;
+  type: 'success' | 'error';
+  message: string;
+};
 
 type RequestPatch = Partial<
   Pick<
@@ -57,7 +68,8 @@ function App() {
   const [loginDocument, setLoginDocument] = useState('');
   const [loginPin, setLoginPin] = useState('0000');
   const [loginError, setLoginError] = useState('');
-  const [appError, setAppError] = useState('');
+  const [banner, setBanner] = useState<BannerState | null>(null);
+  const [toasts, setToasts] = useState<ToastState[]>([]);
   const [loading, setLoading] = useState(true);
   const [pinDraft, setPinDraft] = useState('');
   const [pinConfirm, setPinConfirm] = useState('');
@@ -74,10 +86,17 @@ function App() {
   });
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isStandalone, setIsStandalone] = useState(false);
+  const [patientFontLarge, setPatientFontLarge] = useState(() => readJson<boolean>('transporter:patient-font', false));
+
+  const patientView = !session || session.role === 'cliente';
 
   useEffect(() => {
     writeJson(SESSION_KEY, session);
   }, [session]);
+
+  useEffect(() => {
+    writeJson('transporter:patient-font', patientFontLarge);
+  }, [patientFontLarge]);
 
   useEffect(() => {
     const standalone =
@@ -138,7 +157,7 @@ function App() {
 
     let cancelled = false;
     refreshRequests(session.token).catch(() => {
-      if (!cancelled) setAppError('Não foi possível carregar as solicitações.');
+      if (!cancelled) showBanner('error', 'Não foi possível carregar as solicitações.');
     });
 
     if (session.role === 'administrador') {
@@ -147,7 +166,7 @@ function App() {
           if (!cancelled) setUsers(response.rows ?? []);
         })
         .catch(() => {
-          if (!cancelled) setAppError('Não foi possível carregar os usuários.');
+          if (!cancelled) showBanner('error', 'Não foi possível carregar os usuários.');
         });
     }
 
@@ -187,7 +206,7 @@ function App() {
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoginError('');
-    setAppError('');
+    setBanner(null);
 
     try {
       const response = await loginApi(normalizeDocument(loginDocument), loginPin);
@@ -219,7 +238,7 @@ function App() {
     if (!session?.token) return;
 
     if (pinDraft.length < 4 || pinDraft !== pinConfirm) {
-      setAppError('O novo PIN precisa ter ao menos 4 dígitos e deve ser confirmado.');
+      showBanner('error', 'O novo PIN precisa ter ao menos 4 dígitos e deve ser confirmado.');
       return;
     }
 
@@ -230,9 +249,10 @@ function App() {
       writeJson(SESSION_KEY, nextSession);
       setPinDraft('');
       setPinConfirm('');
+      pushToast('success', 'PIN atualizado com sucesso.');
       await refreshRequests(session.token);
     } catch (error) {
-      setAppError(error instanceof Error ? error.message : 'Não foi possível alterar o PIN.');
+      showBanner('error', error instanceof Error ? error.message : 'Não foi possível alterar o PIN.');
     }
   }
 
@@ -255,10 +275,11 @@ function App() {
       const response = await createRequest(requestForm, session.token);
       const createdId = response.row && 'id' in response.row ? String(response.row.id) : '';
       setRequestForm(defaultRequestForm);
+      pushToast('success', 'Solicitação criada com sucesso.');
       await refreshRequests(session.token);
       if (createdId) setActiveRequestId(createdId);
     } catch (error) {
-      setAppError(error instanceof Error ? error.message : 'Não foi possível criar a solicitação.');
+      showBanner('error', error instanceof Error ? error.message : 'Não foi possível criar a solicitação.');
     }
   }
 
@@ -269,7 +290,7 @@ function App() {
       await updateRequest(id, patch, session.token);
       await refreshRequests(session.token);
     } catch (error) {
-      setAppError(error instanceof Error ? error.message : 'Não foi possível atualizar a solicitação.');
+      showBanner('error', error instanceof Error ? error.message : 'Não foi possível atualizar a solicitação.');
     }
   }
 
@@ -277,6 +298,7 @@ function App() {
     if (!activeRequest || !messageDraft.trim()) return;
     await patchRequest(activeRequest.id, { message: messageDraft.trim() });
     setMessageDraft('');
+    pushToast('success', 'Mensagem enviada.');
   }
 
   async function handleConfirmRead() {
@@ -285,11 +307,13 @@ function App() {
       clientConfirmedAt: currentStamp(),
       status: 'agendada'
     });
+    pushToast('success', 'Confirmação registrada.');
   }
 
   async function handleResetClientPin() {
     if (!activeRequest) return;
     await patchRequest(activeRequest.id, { pinStatus: 'reset' });
+    pushToast('success', 'PIN resetado para 0000.');
   }
 
   async function handleCreateUser(event: FormEvent<HTMLFormElement>) {
@@ -310,9 +334,10 @@ function App() {
       setUserForm({ name: '', document: '', role: 'operador', pin: '' });
       const response = await listUsers(session.token);
       setUsers(response.rows ?? []);
-      setAppError('');
+      pushToast('success', 'Usuário criado com sucesso.');
+      setBanner(null);
     } catch (error) {
-      setAppError(error instanceof Error ? error.message : 'Não foi possível criar o usuário.');
+      showBanner('error', error instanceof Error ? error.message : 'Não foi possível criar o usuário.');
     }
   }
 
@@ -329,6 +354,21 @@ function App() {
     installPrompt.prompt();
     await installPrompt.userChoice.catch(() => undefined);
     setInstallPrompt(null);
+  }
+
+  function showBanner(type: BannerState['type'], message: string) {
+    setBanner({ type, message });
+    window.setTimeout(() => {
+      setBanner((current) => (current?.message === message ? null : current));
+    }, 6500);
+  }
+
+  function pushToast(type: ToastState['type'], message: string) {
+    const id = crypto.randomUUID();
+    setToasts((current) => [...current, { id, type, message }]);
+    window.setTimeout(() => {
+      setToasts((current) => current.filter((toast) => toast.id !== id));
+    }, 4200);
   }
 
   const dashboardTitle = session ? `${roleLabels[session.role]} em operação` : 'Portal de acesso';
@@ -381,7 +421,7 @@ function App() {
 
   if (!session) {
     return (
-      <div className="app-shell auth-shell shell-v2">
+      <div className={`app-shell auth-shell shell-v2 ${patientFontLarge ? 'patient-font-large' : ''}`}>
         <aside className="hero-panel hero-panel-v2">
           <div className="brand-lockup">
             <span className="brand-mark">T</span>
@@ -412,13 +452,18 @@ function App() {
               <p className="eyebrow">Acesso seguro</p>
               <h2>Entre com CPF e PIN</h2>
             </div>
-            <div className="topbar-note">
-              <strong>PIN inicial</strong>
-              <span>0000</span>
+            <div className="topbar-actions">
+              <button className="cta ghost font-toggle" type="button" onClick={() => setPatientFontLarge((prev) => !prev)}>
+                {patientFontLarge ? 'Fonte normal' : 'Fonte maior'}
+              </button>
+              <div className="topbar-note">
+                <strong>PIN inicial</strong>
+                <span>0000</span>
+              </div>
             </div>
           </header>
 
-          <section className="glass-card login-card login-card-v2">
+          <section className="glass-card login-card login-card-v2 patient-access">
             <div className="section-head">
               <h3>{dashboardTitle}</h3>
               <p>{roleDescriptions.cliente}</p>
@@ -469,13 +514,29 @@ function App() {
               </div>
             </div>
           </section>
+          {banner ? (
+            <section className={`glass-card banner banner-${banner.type}`}>
+              <strong>{banner.type === 'error' ? 'Erro' : 'Sucesso'}</strong>
+              <p>{banner.message}</p>
+            </section>
+          ) : null}
         </main>
+        {toasts.length ? (
+          <div className="toast-stack">
+            {toasts.map((toast) => (
+              <div key={toast.id} className={`toast toast-${toast.type}`}>
+                <strong>{toast.type === 'error' ? 'Erro' : 'Sucesso'}</strong>
+                <span>{toast.message}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
     );
   }
 
   return (
-    <div className="app-shell dashboard-shell">
+    <div className={`app-shell dashboard-shell ${patientView && patientFontLarge ? 'patient-font-large' : ''}`}>
       <aside className="hero-panel hero-panel-v2">
         <div className="brand-lockup">
           <span className="brand-mark">T</span>
@@ -540,6 +601,11 @@ function App() {
             <h2>Central da Solicitação, frota e acessos</h2>
           </div>
           <div className="topbar-actions">
+            {patientView ? (
+              <button className="cta ghost font-toggle" type="button" onClick={() => setPatientFontLarge((prev) => !prev)}>
+                {patientFontLarge ? 'Fonte normal' : 'Fonte maior'}
+              </button>
+            ) : null}
             <button className="cta ghost" onClick={handleLogout} type="button">
               Sair
             </button>
@@ -580,9 +646,10 @@ function App() {
           </section>
         )}
 
-        {appError ? (
-          <section className="glass-card alert-card">
-            <p className="form-error">{appError}</p>
+        {banner ? (
+          <section className={`glass-card banner banner-${banner.type}`}>
+            <strong>{banner.type === 'error' ? 'Erro' : 'Sucesso'}</strong>
+            <p>{banner.message}</p>
           </section>
         ) : null}
 
@@ -899,6 +966,8 @@ function App() {
                   activeRequest.audit.map((item) => (
                     <div className="audit-item" key={item.id}>
                       <strong>{item.label}</strong>
+                      {item.details ? <small>{item.details}</small> : null}
+                      {item.actor ? <span>{item.actor}</span> : null}
                       <span>{item.at}</span>
                     </div>
                   ))
@@ -983,6 +1052,16 @@ function App() {
               )}
             </div>
           </section>
+        ) : null}
+        {toasts.length ? (
+          <div className="toast-stack">
+            {toasts.map((toast) => (
+              <div key={toast.id} className={`toast toast-${toast.type}`}>
+                <strong>{toast.type === 'error' ? 'Erro' : 'Sucesso'}</strong>
+                <span>{toast.message}</span>
+              </div>
+            ))}
+          </div>
         ) : null}
       </main>
     </div>
