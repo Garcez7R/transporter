@@ -26,6 +26,8 @@ type RequestDetail = {
   clientName: string;
   document: string;
   phone: string;
+  clientCep?: string;
+  clientAddress?: string;
   destination: string;
   boardingPoint: string;
   departureAt: string;
@@ -69,6 +71,8 @@ async function fetchDetail(env: Env, requestId: number) {
         clients.name AS clientName,
         clients.document AS document,
         trip_requests.client_phone AS phone,
+        clients.cep AS clientCep,
+        clients.address AS clientAddress,
         trip_requests.destination,
         trip_requests.boarding_point AS boardingPoint,
         trip_requests.departure_at AS departureAt,
@@ -132,6 +136,8 @@ async function fetchDetail(env: Env, requestId: number) {
     clientName: String(row.clientName),
     document: String(row.document),
     phone: String(row.phone ?? ''),
+    clientCep: row.clientCep ? String(row.clientCep) : '',
+    clientAddress: row.clientAddress ? String(row.clientAddress) : '',
     destination: String(row.destination),
     boardingPoint: String(row.boardingPoint),
     departureAt: String(row.departureAt),
@@ -312,7 +318,7 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
     }
   }
 
-  if (body.pinStatus !== undefined && !['operador', 'administrador'].includes(role)) {
+  if (body.pinStatus !== undefined && !['operador', 'gerente', 'administrador'].includes(role)) {
     return json({ ok: false, error: 'Sem permissão para resetar o PIN do paciente.' }, { status: 403 });
   }
 

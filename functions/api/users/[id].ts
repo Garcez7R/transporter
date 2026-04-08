@@ -10,7 +10,7 @@ type Body = {
 
 function canReset(sessionRole: string, targetRole: string) {
   if (sessionRole === 'administrador') return true;
-  if (sessionRole === 'gerente') return targetRole === 'operador';
+  if (sessionRole === 'gerente') return targetRole === 'operador' || targetRole === 'cliente';
   if (sessionRole === 'operador') return targetRole === 'cliente';
   return false;
 }

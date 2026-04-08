@@ -538,6 +538,12 @@ function App() {
     }, 4200);
   }
 
+  function buildMapQuery(request: TripRequest) {
+    const parts = [request.boardingPoint, request.clientAddress, request.clientCep].filter(Boolean);
+    if (!parts.length) return '';
+    return parts.join(', ');
+  }
+
   const dashboardTitle = session ? `${roleLabels[session.role]} em operação` : 'Portal de acesso';
   const isFiltered = Boolean(requestFilter.trim());
   const requestEmptyText = isFiltered
@@ -1202,10 +1208,17 @@ function App() {
                   <p><strong>Paciente:</strong> {activeRequest.clientName}</p>
                   <p><strong>CPF:</strong> {formatDocument(activeRequest.document)}</p>
                   <p><strong>Telefone:</strong> {activeRequest.phoneVisible ? activeRequest.phone : 'oculto'}</p>
+                  <p><strong>Endereço:</strong> {activeRequest.clientAddress || 'não informado'}</p>
+                  <p><strong>CEP:</strong> {activeRequest.clientCep || 'não informado'}</p>
                   <p><strong>Embarque:</strong> {activeRequest.boardingPoint}</p>
                   <p><strong>Destino:</strong> {activeRequest.destination}</p>
                   <p><strong>Acompanhantes / carga:</strong> {activeRequest.companions}</p>
-                  <a className="cta" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activeRequest.boardingPoint)}`} target="_blank" rel="noreferrer">
+                  <a
+                    className="cta"
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(buildMapQuery(activeRequest) || activeRequest.boardingPoint)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
                     Abrir mapa
                   </a>
                 </div>
@@ -1362,7 +1375,7 @@ function App() {
                     Confirmar agenda recebida
                   </button>
                 ) : null}
-                {session.role === 'operador' || session.role === 'administrador' ? (
+                {session.role === 'operador' || session.role === 'gerente' || session.role === 'administrador' ? (
                   <button className="cta ghost" type="button" onClick={handleResetClientPin}>
                     Resetar PIN do paciente
                   </button>
