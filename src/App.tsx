@@ -1,9 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { activeTrips, demoUsers, fleet, flowSteps, profiles, defaultRequestForm } from './data';
-import { changePin, createRequest, listRequests, login as loginApi, logout as logoutApi, me, updateRequest } from './lib/api';
+import {
+  changePin,
+  createRequest,
+  createUser,
+  listRequests,
+  listUsers,
+  login as loginApi,
+  logout as logoutApi,
+  me,
+  updateRequest
+} from './lib/api';
 import { formatDocument, normalizeDocument, readJson, removeItem, SESSION_KEY, currentStamp, writeJson } from './lib/persistence';
-import type { AccessRole, RequestFormState, RequestStatus, SessionUser, TripRequest } from './types';
+import type { AccessRole, RequestFormState, RequestStatus, SessionUser, TripRequest, UserFormState } from './types';
+import type { UserRow } from './lib/api';
 
 type RequestPatch = Partial<
   Pick<
@@ -54,6 +65,13 @@ function App() {
   const [requestFilter, setRequestFilter] = useState('');
   const [requestForm, setRequestForm] = useState<RequestFormState>(defaultRequestForm);
   const [messageDraft, setMessageDraft] = useState('');
+  const [users, setUsers] = useState<UserRow[]>([]);
+  const [userForm, setUserForm] = useState<UserFormState>({
+    name: '',
+    document: '',
+    role: 'operador',
+    pin: ''
+  });
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isStandalone, setIsStandalone] = useState(false);
 
@@ -122,6 +140,16 @@ function App() {
     refreshRequests(session.token).catch(() => {
       if (!cancelled) setAppError('Não foi possível carregar as solicitações.');
     });
+
+    if (session.role === 'administrador') {
+      listUsers(session.token)
+        .then((response) => {
+          if (!cancelled) setUsers(response.rows ?? []);
+        })
+        .catch(() => {
+          if (!cancelled) setAppError('Não foi possível carregar os usuários.');
+        });
+    }
 
     return () => {
       cancelled = true;
@@ -264,6 +292,30 @@ function App() {
     await patchRequest(activeRequest.id, { pinStatus: 'reset' });
   }
 
+  async function handleCreateUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!session?.token || session.role !== 'administrador') return;
+
+    try {
+      await createUser(
+        {
+          name: userForm.name.trim(),
+          document: normalizeDocument(userForm.document),
+          role: userForm.role,
+          pin: userForm.pin.trim() || '0000'
+        },
+        session.token
+      );
+
+      setUserForm({ name: '', document: '', role: 'operador', pin: '' });
+      const response = await listUsers(session.token);
+      setUsers(response.rows ?? []);
+      setAppError('');
+    } catch (error) {
+      setAppError(error instanceof Error ? error.message : 'Não foi possível criar o usuário.');
+    }
+  }
+
   const operationalSignals = [
     { label: 'Solicitações ativas', value: String(requests.length) },
     { label: 'Em distribuição', value: String(requests.filter((item) => item.status === 'aguardando_distribuicao').length) },
@@ -280,6 +332,13 @@ function App() {
   }
 
   const dashboardTitle = session ? `${roleLabels[session.role]} em operação` : 'Portal de acesso';
+  const profileMap = {
+    cliente: requests.filter((request) => normalizeDocument(request.document) === normalizeDocument(session?.document ?? '')).length,
+    operador: requests.length,
+    gerente: requests.filter((request) => request.status !== 'concluida').length,
+    motorista: requests.filter((request) => request.driver.toLowerCase() === session?.name.toLowerCase()).length,
+    administrador: users.length
+  };
 
   if (loading) {
     return (
@@ -302,62 +361,75 @@ function App() {
 
   if (!session) {
     return (
-      <div className="app-shell auth-shell">
-        <aside className="hero-panel">
+      <div className="app-shell auth-shell shell-v2">
+        <aside className="hero-panel hero-panel-v2">
           <div className="brand-lockup">
             <span className="brand-mark">T</span>
             <div>
               <p className="eyebrow">Transporter</p>
-              <h1>Operação de transporte de pacientes com rastreabilidade, ritmo e clareza.</h1>
+              <h1>Plataforma pública de transporte de pacientes, pronta para operação.</h1>
             </div>
           </div>
 
           <p className="hero-copy">
-            Plataforma web com suporte a PWA para coordenar solicitações, distribuir viagens,
-            reduzir ruído operacional e oferecer ao cliente, ao motorista e à gerência uma visão
-            única da agenda de transporte público de pacientes.
+            Gestão de solicitações, agenda, mensagens e rastreabilidade em uma experiência PWA
+            profissional para prefeitura, equipe operacional e motoristas.
           </p>
 
-          <div className="hero-stats">
-            <div>
-              <strong>5 perfis</strong>
-              <span>acesso por responsabilidade</span>
-            </div>
-            <div>
-              <strong>D1 + Workers</strong>
-              <span>stack enxuta e escalável</span>
-            </div>
-            <div>
-              <strong>PWA mobile</strong>
-              <span>portal pronto para celular</span>
-            </div>
+          <div className="pill-row">
+            <span className="pill">PWA instalável</span>
+            <span className="pill">Mobile-first</span>
+            <span className="pill">Desktop-ready</span>
           </div>
 
-          <section className="glass-card">
+          <div className="capability-grid">
+            <article className="feature-card">
+              <strong>Solicitações</strong>
+              <p>Protocolo, atendimento, distribuição e histórico.</p>
+            </article>
+            <article className="feature-card">
+              <strong>Rastreabilidade</strong>
+              <p>Mensagens, leitura, auditoria e status operacional.</p>
+            </article>
+            <article className="feature-card">
+              <strong>Governança</strong>
+              <p>Perfis, permissões e usuários reais via D1.</p>
+            </article>
+            <article className="feature-card">
+              <strong>Execução</strong>
+              <p>Fluxo leve, objetivo e pronto para uso institucional.</p>
+            </article>
+          </div>
+
+          <section className="glass-card process-card">
             <div className="section-head">
-              <p className="eyebrow">Fluxo ideal</p>
-              <h2>Da solicitação à viagem concluída</h2>
+              <p className="eyebrow">Fluxo operacional</p>
+              <h2>Do atendimento à viagem concluída</h2>
             </div>
-            <ol className="timeline">
+            <div className="process-grid">
               {flowSteps.map((step, index) => (
-                <li key={step}>
-                  <span>{index + 1}</span>
+                <article className="process-item" key={step}>
+                  <span>{String(index + 1).padStart(2, '0')}</span>
                   <p>{step}</p>
-                </li>
+                </article>
               ))}
-            </ol>
+            </div>
           </section>
         </aside>
 
         <main className="content-panel login-panel">
-          <header className="topbar">
+          <header className="topbar topbar-v2">
             <div>
               <p className="eyebrow">Acesso seguro</p>
               <h2>Entre com documento e PIN</h2>
             </div>
+            <div className="topbar-note">
+              <strong>PIN inicial</strong>
+              <span>0000</span>
+            </div>
           </header>
 
-          <section className="glass-card login-card">
+          <section className="glass-card login-card login-card-v2">
             <div className="section-head">
               <h3>{dashboardTitle}</h3>
               <p>{roleDescriptions.cliente}</p>
@@ -365,15 +437,15 @@ function App() {
 
             <form className="login-form" onSubmit={handleLogin}>
               <label>
-                <span>CPF/CNPJ</span>
+                <span>CPF / CNPJ</span>
                 <input
                   value={loginDocument}
                   onChange={(event) => setLoginDocument(formatDocument(event.target.value))}
-                  placeholder="Digite o CPF ou CNPJ"
+                  placeholder="Digite o documento"
                 />
               </label>
               <label>
-                <span>PIN inicial</span>
+                <span>PIN</span>
                 <input
                   value={loginPin}
                   onChange={(event) => setLoginPin(event.target.value)}
@@ -414,8 +486,8 @@ function App() {
   }
 
   return (
-    <div className="app-shell">
-      <aside className="hero-panel">
+    <div className="app-shell dashboard-shell">
+      <aside className="hero-panel hero-panel-v2">
         <div className="brand-lockup">
           <span className="brand-mark">T</span>
           <div>
@@ -428,27 +500,35 @@ function App() {
           {roleDescriptions[session.role]} O acesso está vinculado ao documento {formatDocument(session.document)}.
         </p>
 
-        <div className="hero-stats">
+        <div className="profile-summary">
+          <div className="profile-avatar">{session.name.slice(0, 2).toUpperCase()}</div>
           <div>
-            <strong>{roleLabels[session.role]}</strong>
-            <span>{session.name}</span>
+            <strong>{session.name}</strong>
+            <span>{roleLabels[session.role]}</span>
           </div>
-          <div>
-            <strong>{session.mustChangePin ? 'Troca pendente' : 'PIN atualizado'}</strong>
-            <span>{session.mustChangePin ? 'Primeiro acesso com PIN 0000' : 'Acesso regular'}</span>
-          </div>
+        </div>
+
+        <div className="hero-stats stats-v2">
           <div>
             <strong>{visibleRequests.length}</strong>
             <span>solicitações visíveis</span>
           </div>
+          <div>
+            <strong>{session.mustChangePin ? 'Troca pendente' : 'PIN atualizado'}</strong>
+            <span>{session.mustChangePin ? 'Primeiro acesso' : 'Sessão ativa'}</span>
+          </div>
+          <div>
+            <strong>{profileMap[session.role]}</strong>
+            <span>itens do perfil</span>
+          </div>
         </div>
 
-        <section className="glass-card">
+        <section className="glass-card signal-card">
           <div className="section-head">
             <p className="eyebrow">Sinais operacionais</p>
             <h2>Status rápido</h2>
           </div>
-          <div className="signals">
+          <div className="signals signals-v2">
             {operationalSignals.map((signal) => (
               <div key={signal.label}>
                 <strong>{signal.value}</strong>
@@ -465,14 +545,16 @@ function App() {
       </aside>
 
       <main className="content-panel">
-        <header className="topbar">
+        <header className="topbar topbar-v2">
           <div>
             <p className="eyebrow">Visão executiva</p>
             <h2>Central da Solicitação, frota e acessos</h2>
           </div>
-          <button className="cta ghost" onClick={handleLogout} type="button">
-            Sair
-          </button>
+          <div className="topbar-actions">
+            <button className="cta ghost" onClick={handleLogout} type="button">
+              Sair
+            </button>
+          </div>
         </header>
 
         {session.mustChangePin && (
@@ -515,9 +597,9 @@ function App() {
           </section>
         ) : null}
 
-        <section className="grid profiles-grid">
+        <section className="grid profiles-grid profiles-grid-v2">
           {profiles.map((profile) => (
-            <article className={`glass-card profile-card ${session.role === profile.role ? 'profile-active' : ''}`} key={profile.role}>
+            <article className={`glass-card profile-card profile-card-v2 ${session.role === profile.role ? 'profile-active' : ''}`} key={profile.role}>
               <div className="card-top">
                 <span className="tag">{roleLabels[profile.role]}</span>
                 <strong>{profile.count}</strong>
@@ -530,7 +612,7 @@ function App() {
 
         {session.role === 'operador' && (
           <section className="grid two-col">
-            <article className="glass-card">
+            <article className="glass-card panel-card">
               <div className="section-head">
                 <p className="eyebrow">Cadastro rápido</p>
                 <h2>Nova solicitação</h2>
@@ -551,7 +633,7 @@ function App() {
               </form>
             </article>
 
-            <article className="glass-card">
+            <article className="glass-card panel-card">
               <div className="section-head">
                 <p className="eyebrow">Atendimento</p>
                 <h2>Solicitações recentes</h2>
@@ -583,7 +665,7 @@ function App() {
         )}
 
         {session.role === 'gerente' && (
-          <section className="glass-card">
+          <section className="glass-card panel-card">
             <div className="section-head">
               <p className="eyebrow">Distribuição</p>
               <h2>Configuração operacional da viagem</h2>
@@ -655,7 +737,7 @@ function App() {
 
         {session.role === 'motorista' && (
           <section className="grid two-col">
-            <article className="glass-card">
+            <article className="glass-card panel-card">
               <div className="section-head">
                 <p className="eyebrow">Agenda mobile</p>
                 <h2>Viagens atribuídas</h2>
@@ -679,7 +761,7 @@ function App() {
               </div>
             </article>
 
-            <article className="glass-card">
+            <article className="glass-card panel-card">
               <div className="section-head">
                 <p className="eyebrow">Ações operacionais</p>
                 <h2>Detalhes rápidos</h2>
@@ -702,7 +784,7 @@ function App() {
         )}
 
         {(session.role === 'cliente' || session.role === 'administrador') && (
-          <section className="glass-card">
+          <section className="glass-card panel-card">
             <div className="section-head">
               <p className="eyebrow">Solicitação central</p>
               <h2>{session.role === 'cliente' ? 'Minhas viagens' : 'Visão global'}</h2>
@@ -732,7 +814,7 @@ function App() {
 
         {activeRequest ? (
           <section className="grid two-col">
-            <article className="glass-card">
+            <article className="glass-card panel-card">
               <div className="section-head">
                 <p className="eyebrow">Detalhe da viagem</p>
                 <h2>Central da solicitação</h2>
@@ -749,7 +831,7 @@ function App() {
               </div>
             </article>
 
-            <article className="glass-card">
+            <article className="glass-card panel-card">
               <div className="section-head">
                 <p className="eyebrow">Mensagens e auditoria</p>
                 <h2>Histórico e comunicação</h2>
@@ -828,18 +910,32 @@ function App() {
           <section className="glass-card">
             <div className="section-head">
               <p className="eyebrow">Governança</p>
-              <h2>Usuários com PIN inicial</h2>
+              <h2>Usuários reais</h2>
             </div>
+            <form className="admin-create-form" onSubmit={handleCreateUser}>
+              <input placeholder="Nome" value={userForm.name} onChange={(event) => setUserForm({ ...userForm, name: event.target.value })} />
+              <input placeholder="CPF/CNPJ" value={userForm.document} onChange={(event) => setUserForm({ ...userForm, document: formatDocument(event.target.value) })} />
+              <select value={userForm.role} onChange={(event) => setUserForm({ ...userForm, role: event.target.value as AccessRole })}>
+                <option value="cliente">cliente</option>
+                <option value="operador">operador</option>
+                <option value="gerente">gerente</option>
+                <option value="motorista">motorista</option>
+                <option value="administrador">administrador</option>
+              </select>
+              <input placeholder="PIN inicial (opcional)" value={userForm.pin} onChange={(event) => setUserForm({ ...userForm, pin: event.target.value })} />
+              <button className="cta" type="submit">
+                Criar usuário
+              </button>
+            </form>
             <div className="admin-grid">
-              {requests.length
-                ? [...new Map(requests.map((request) => [request.document, request])).values()].map((request) => (
-                    <article className="admin-card" key={request.document}>
-                      <strong>{request.clientName}</strong>
-                      <p>{request.document}</p>
-                      <small>Viagens vinculadas</small>
-                    </article>
-                  ))
-                : null}
+              {users.map((user) => (
+                <article className="admin-card" key={user.id}>
+                  <strong>{user.name}</strong>
+                  <p>{roleLabels[user.role as AccessRole] ?? user.role}</p>
+                  <small>{formatDocument(user.document)}</small>
+                  <small>{user.pinMustChange ? 'PIN inicial pendente' : 'PIN alterado'}</small>
+                </article>
+              ))}
             </div>
           </section>
         ) : null}

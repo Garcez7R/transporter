@@ -2,16 +2,15 @@ import type { SessionUser, TripRequest, RequestStatus } from '../types';
 
 type ApiSession = Omit<SessionUser, 'token'> & { token?: string };
 
-type ApiResponse<T> = {
+type ApiEnvelope = {
   ok: boolean;
   error?: string;
   session?: ApiSession | null;
-  rows?: TripRequest[];
-  row?: TripRequest | { id?: number | string; protocol?: string };
-  item?: TripRequest;
   token?: string;
   mustChangePin?: boolean;
 };
+
+type ApiResponse<T = Record<string, never>> = ApiEnvelope & T;
 
 async function request<T>(path: string, init?: RequestInit, token?: string): Promise<T> {
   const response = await fetch(path, {
@@ -122,4 +121,37 @@ export async function updateRequest(
 
 export async function getRequest(id: string, token?: string) {
   return request<ApiResponse<{ item: TripRequest }>>(`/api/requests/${id}`, undefined, token);
+}
+
+export type UserRow = {
+  id: number;
+  role: string;
+  name: string;
+  document: string;
+  pinMustChange: number;
+  createdAt?: string;
+  lastLoginAt?: string | null;
+};
+
+export async function listUsers(token?: string) {
+  return request<ApiResponse<{ rows: UserRow[] }>>('/api/users', undefined, token);
+}
+
+export async function createUser(
+  payload: {
+    name: string;
+    document: string;
+    role: 'cliente' | 'operador' | 'gerente' | 'motorista' | 'administrador';
+    pin?: string;
+  },
+  token?: string
+) {
+  return request<ApiResponse<{ row: UserRow }>>(
+    '/api/users',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    },
+    token
+  );
 }

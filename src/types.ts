@@ -88,3 +88,10 @@ export interface RequestFormState {
   companions: string;
   notes: string;
 }
+
+export interface UserFormState {
+  name: string;
+  document: string;
+  role: AccessRole;
+  pin: string;
+}
