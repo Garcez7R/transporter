@@ -1,6 +1,7 @@
 name = "transporter"
 compatibility_date = "2026-04-08"
 pages_build_output_dir = "dist"
+migrations_dir = "d1/migrations"
 
 [[d1_databases]]
 binding = "DB"

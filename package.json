@@ -10,7 +10,7 @@
     "check": "tsc -b --pretty false",
     "cf:login": "npx wrangler login",
     "cf:d1:create": "npx wrangler d1 create transporter",
-    "cf:d1:apply": "npx wrangler d1 migrations apply transporter",
+    "cf:d1:apply": "npx wrangler d1 migrations apply transporter --remote",
     "cf:dev": "npm run build && npx wrangler pages dev dist",
     "cf:deploy": "npm run build && npx wrangler pages deploy dist --project-name transporter"
   },
