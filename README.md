@@ -1,6 +1,6 @@
 # Transporter
 
-Plataforma web com suporte a PWA para gestão de transporte e logística de passageiros ou pequenas cargas.
+Plataforma web com suporte a PWA para gestão de transporte de pacientes e operação pública, sem vínculo com cidade específica.
 
 ## Base do projeto
 

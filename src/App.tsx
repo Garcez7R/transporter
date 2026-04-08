@@ -34,9 +34,9 @@ const roleLabels: Record<AccessRole, string> = {
 
 const roleDescriptions: Record<AccessRole, string> = {
   cliente: 'Portal de consulta com CPF/CNPJ + PIN.',
-  operador: 'Cadastro, triagem e histórico das solicitações.',
-  gerente: 'Distribuição da frota e controle operacional.',
-  motorista: 'Agenda mobile otimizada para uso em rota.',
+  operador: 'Cadastro, triagem e histórico das solicitações de transporte de pacientes.',
+  gerente: 'Distribuição da frota e controle operacional da agenda pública.',
+  motorista: 'Agenda mobile otimizada para o serviço de transporte.',
   administrador: 'Governança global e acesso irrestrito.'
 };
 
@@ -54,10 +54,30 @@ function App() {
   const [requestFilter, setRequestFilter] = useState('');
   const [requestForm, setRequestForm] = useState<RequestFormState>(defaultRequestForm);
   const [messageDraft, setMessageDraft] = useState('');
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
     writeJson(SESSION_KEY, session);
   }, [session]);
+
+  useEffect(() => {
+    const standalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+    setIsStandalone(standalone);
+
+    const handleBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as BeforeInstallPromptEvent);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -248,8 +268,16 @@ function App() {
     { label: 'Solicitações ativas', value: String(requests.length) },
     { label: 'Em distribuição', value: String(requests.filter((item) => item.status === 'aguardando_distribuicao').length) },
     { label: 'Mensagens novas', value: String(requests.reduce((total, request) => total + request.messages.length, 0)) },
-    { label: 'PIN inicial', value: '0000' }
+    { label: 'PIN inicial', value: '0000' },
+    { label: 'PWA', value: isStandalone ? 'Instalado' : 'Pronto' }
   ];
+
+  async function handleInstallApp() {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    await installPrompt.userChoice.catch(() => undefined);
+    setInstallPrompt(null);
+  }
 
   const dashboardTitle = session ? `${roleLabels[session.role]} em operação` : 'Portal de acesso';
 
@@ -280,14 +308,14 @@ function App() {
             <span className="brand-mark">T</span>
             <div>
               <p className="eyebrow">Transporter</p>
-              <h1>Operação de transporte com rastreabilidade, ritmo e clareza.</h1>
+              <h1>Operação de transporte de pacientes com rastreabilidade, ritmo e clareza.</h1>
             </div>
           </div>
 
           <p className="hero-copy">
             Plataforma web com suporte a PWA para coordenar solicitações, distribuir viagens,
             reduzir ruído operacional e oferecer ao cliente, ao motorista e à gerência uma visão
-            única da agenda.
+            única da agenda de transporte público de pacientes.
           </p>
 
           <div className="hero-stats">
@@ -428,6 +456,11 @@ function App() {
               </div>
             ))}
           </div>
+          {!isStandalone ? (
+            <button className="cta ghost install-cta" type="button" onClick={handleInstallApp} disabled={!installPrompt}>
+              {installPrompt ? 'Instalar app' : 'Instalação disponível quando o navegador permitir'}
+            </button>
+          ) : null}
         </section>
       </aside>
 
@@ -784,6 +817,10 @@ function App() {
               <strong>Segurança</strong>
               <p>Estrutura preparada para PIN, tokens e controle por perfil.</p>
             </div>
+          </div>
+          <div className="pwa-note">
+            <strong>PWA</strong>
+            <p>Instalável em Android, iPhone com suporte do navegador, Windows e Linux via navegador moderno.</p>
           </div>
         </section>
 

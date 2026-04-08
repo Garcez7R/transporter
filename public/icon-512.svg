@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Transporter">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0b1c33"/>
+      <stop offset="100%" stop-color="#07111f"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#7de0d5"/>
+      <stop offset="100%" stop-color="#8cb8ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <circle cx="256" cy="256" r="166" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="14"/>
+  <path d="M160 160h192v46h-70v146h-52V206h-70z" fill="url(#mark)"/>
+  <rect x="138" y="338" width="236" height="32" rx="16" fill="rgba(255,255,255,0.12)"/>
+</svg>

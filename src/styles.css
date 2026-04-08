@@ -142,7 +142,7 @@ h1 {
 }
 
 .hero-stats {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 }
 
 .hero-stats div,
@@ -249,6 +249,11 @@ h1 {
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow: none;
+}
+
+.cta:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .grid {
@@ -389,6 +394,22 @@ h1 {
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.pwa-note {
+  padding: 16px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(125, 224, 213, 0.08), rgba(140, 184, 255, 0.08));
+  border: 1px solid rgba(125, 224, 213, 0.14);
+}
+
+.pwa-note p {
+  margin-bottom: 0;
+}
+
+.install-cta {
+  margin-top: 14px;
+  width: 100%;
 }
 
 .login-card {

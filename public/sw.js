@@ -1,5 +1,13 @@
 const CACHE_NAME = 'transporter-v1';
-const ASSETS = ['/', '/index.html', '/manifest.webmanifest'];
+const ASSETS = [
+  '/',
+  '/index.html',
+  '/manifest.webmanifest',
+  '/icon-192.svg',
+  '/icon-512.svg',
+  '/icon-192.png',
+  '/icon-512.png'
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
