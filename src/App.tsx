@@ -387,53 +387,22 @@ function App() {
             <span className="brand-mark">T</span>
             <div>
               <p className="eyebrow">Transporter</p>
-              <h1>Plataforma pública de transporte de pacientes, pronta para operação.</h1>
+              <h1>Portal do paciente</h1>
             </div>
           </div>
 
           <p className="hero-copy">
-            Gestão de solicitações, agenda, mensagens e rastreabilidade em uma experiência PWA
-            profissional para prefeitura, equipe operacional e motoristas.
+            Consulte seus agendamentos de transporte, confirme o recebimento e envie mensagens para a equipe.
           </p>
-
-          <div className="pill-row">
-            <span className="pill">PWA instalável</span>
-            <span className="pill">Mobile-first</span>
-            <span className="pill">Desktop-ready</span>
-          </div>
-
-          <div className="capability-grid">
-            <article className="feature-card">
-              <strong>Solicitações</strong>
-              <p>Protocolo, atendimento, distribuição e histórico.</p>
-            </article>
-            <article className="feature-card">
-              <strong>Rastreabilidade</strong>
-              <p>Mensagens, leitura, auditoria e status operacional.</p>
-            </article>
-            <article className="feature-card">
-              <strong>Governança</strong>
-              <p>Perfis, permissões e usuários reais via D1.</p>
-            </article>
-            <article className="feature-card">
-              <strong>Execução</strong>
-              <p>Fluxo leve, objetivo e pronto para uso institucional.</p>
-            </article>
-          </div>
 
           <section className="glass-card process-card">
             <div className="section-head">
-              <p className="eyebrow">Fluxo operacional</p>
-              <h2>Do atendimento à viagem concluída</h2>
+              <p className="eyebrow">Como acessar</p>
+              <h2>Use seu CPF e PIN</h2>
             </div>
-            <div className="process-grid">
-              {flowSteps.map((step, index) => (
-                <article className="process-item" key={step}>
-                  <span>{String(index + 1).padStart(2, '0')}</span>
-                  <p>{step}</p>
-                </article>
-              ))}
-            </div>
+            <p className="hero-copy">
+              Digite seu CPF e o PIN informado pela equipe para acessar seus horários.
+            </p>
           </section>
         </aside>
 
