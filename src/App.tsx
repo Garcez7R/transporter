@@ -87,6 +87,7 @@ function App() {
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isStandalone, setIsStandalone] = useState(false);
   const [patientFontLarge, setPatientFontLarge] = useState(() => readJson<boolean>('transporter:patient-font', false));
+  const [activeNav, setActiveNav] = useState('visao');
 
   const patientView = !session || session.role === 'cliente';
 
@@ -387,6 +388,23 @@ function App() {
       : session?.role === 'cliente'
         ? 'Nenhuma viagem registrada para este CPF.'
         : 'Nenhuma solicitação registrada no momento.';
+  const isPatientSession = session?.role === 'cliente';
+  const internalNavItems = (() => {
+    if (!session || isPatientSession) return [];
+
+    const base = [{ id: 'visao', label: 'Visão geral' }];
+    if (session.role === 'operador') {
+      base.push({ id: 'solicitacoes', label: 'Solicitações' }, { id: 'detalhes', label: 'Detalhes' }, { id: 'mensagens', label: 'Mensagens' });
+    } else if (session.role === 'gerente') {
+      base.push({ id: 'distribuicao', label: 'Distribuição' }, { id: 'detalhes', label: 'Detalhes' }, { id: 'mensagens', label: 'Mensagens' });
+    } else if (session.role === 'motorista') {
+      base.push({ id: 'agenda', label: 'Agenda' }, { id: 'detalhes', label: 'Detalhes' }, { id: 'mensagens', label: 'Mensagens' });
+    } else if (session.role === 'administrador') {
+      base.push({ id: 'viagens', label: 'Viagens' }, { id: 'detalhes', label: 'Detalhes' }, { id: 'usuarios', label: 'Usuários' });
+    }
+
+    return base;
+  })();
 
   if (loading) {
     return (
@@ -422,31 +440,20 @@ function App() {
   if (!session) {
     return (
       <div className={`app-shell auth-shell shell-v2 ${patientFontLarge ? 'patient-font-large' : ''}`}>
-        <aside className="hero-panel hero-panel-v2">
-          <div className="brand-lockup">
-            <span className="brand-mark">T</span>
-            <div>
-              <p className="eyebrow">Transporter</p>
-              <h1>Portal do paciente</h1>
-            </div>
-          </div>
-
-          <p className="hero-copy">
-            Consulte seus agendamentos de transporte, confirme o recebimento e envie mensagens para a equipe.
-          </p>
-
-          <section className="glass-card process-card">
-            <div className="section-head">
-              <p className="eyebrow">Como acessar</p>
-              <h2>Use seu CPF e PIN</h2>
+        <main className="content-panel login-panel">
+          <div className="login-hero">
+            <div className="brand-lockup">
+              <span className="brand-mark">T</span>
+              <div>
+                <p className="eyebrow">Transporter</p>
+                <h1>Portal do paciente</h1>
+              </div>
             </div>
             <p className="hero-copy">
-              Digite seu CPF e o PIN informado pela equipe para acessar seus horários.
+              Consulte seus agendamentos de transporte, confirme o recebimento e envie mensagens para a equipe.
             </p>
-          </section>
-        </aside>
+          </div>
 
-        <main className="content-panel login-panel">
           <header className="topbar topbar-v2">
             <div>
               <p className="eyebrow">Acesso seguro</p>
@@ -536,63 +543,124 @@ function App() {
   }
 
   return (
-    <div className={`app-shell dashboard-shell ${patientView && patientFontLarge ? 'patient-font-large' : ''}`}>
-      <aside className="hero-panel hero-panel-v2">
-        <div className="brand-lockup">
-          <span className="brand-mark">T</span>
-          <div>
-            <p className="eyebrow">Transporter</p>
-            <h1>{dashboardTitle}</h1>
+    <div
+      className={`app-shell dashboard-shell ${patientView && patientFontLarge ? 'patient-font-large' : ''} ${
+        !isPatientSession ? 'saas-app-shell internal-shell' : ''
+      }`}
+    >
+      {isPatientSession ? (
+        <aside className="hero-panel hero-panel-v2">
+          <div className="brand-lockup">
+            <span className="brand-mark">T</span>
+            <div>
+              <p className="eyebrow">Transporter</p>
+              <h1>{dashboardTitle}</h1>
+            </div>
           </div>
-        </div>
 
-        <p className="hero-copy">
-          {roleDescriptions[session.role]} O acesso está vinculado ao CPF {formatDocument(session.document)}.
-        </p>
+          <p className="hero-copy">
+            {roleDescriptions[session.role]} O acesso está vinculado ao CPF {formatDocument(session.document)}.
+          </p>
 
-        <div className="profile-summary">
-          <div className="profile-avatar">{session.name.slice(0, 2).toUpperCase()}</div>
-          <div>
-            <strong>{session.name}</strong>
-            <span>{roleLabels[session.role]}</span>
+          <div className="profile-summary">
+            <div className="profile-avatar">{session.name.slice(0, 2).toUpperCase()}</div>
+            <div>
+              <strong>{session.name}</strong>
+              <span>{roleLabels[session.role]}</span>
+            </div>
           </div>
-        </div>
 
-        <div className="hero-stats stats-v2">
-          <div>
-            <strong>{visibleRequests.length}</strong>
-            <span>solicitações visíveis</span>
+          <div className="hero-stats stats-v2">
+            <div>
+              <strong>{visibleRequests.length}</strong>
+              <span>solicitações visíveis</span>
+            </div>
+            <div>
+              <strong>{session.mustChangePin ? 'Troca pendente' : 'PIN atualizado'}</strong>
+              <span>{session.mustChangePin ? 'Primeiro acesso' : 'Sessão ativa'}</span>
+            </div>
+            <div>
+              <strong>{profileMap[session.role]}</strong>
+              <span>itens do perfil</span>
+            </div>
           </div>
-          <div>
-            <strong>{session.mustChangePin ? 'Troca pendente' : 'PIN atualizado'}</strong>
-            <span>{session.mustChangePin ? 'Primeiro acesso' : 'Sessão ativa'}</span>
-          </div>
-          <div>
-            <strong>{profileMap[session.role]}</strong>
-            <span>itens do perfil</span>
-          </div>
-        </div>
 
-        <section className="glass-card signal-card">
-          <div className="section-head">
-            <p className="eyebrow">Sinais operacionais</p>
-            <h2>Status rápido</h2>
-          </div>
-          <div className="signals signals-v2">
-            {operationalSignals.map((signal) => (
-              <div key={signal.label}>
-                <strong>{signal.value}</strong>
-                <span>{signal.label}</span>
+          <section className="glass-card signal-card">
+            <div className="section-head">
+              <p className="eyebrow">Sinais operacionais</p>
+              <h2>Status rápido</h2>
+            </div>
+            <div className="signals signals-v2">
+              {operationalSignals.map((signal) => (
+                <div key={signal.label}>
+                  <strong>{signal.value}</strong>
+                  <span>{signal.label}</span>
+                </div>
+              ))}
+            </div>
+            {!isStandalone ? (
+              <button className="cta ghost install-cta" type="button" onClick={handleInstallApp} disabled={!installPrompt}>
+                {installPrompt ? 'Instalar app' : 'Instalação disponível quando o navegador permitir'}
+              </button>
+            ) : null}
+          </section>
+        </aside>
+      ) : (
+        <aside className="saas-sidebar">
+          <div className="saas-sidebar-panel">
+            <div className="saas-sidebar-brand">
+              <div className="saas-sidebar-crest" aria-hidden="true">
+                <span>T</span>
               </div>
-            ))}
+              <div className="saas-sidebar-copy">
+                <strong>Transporter</strong>
+                <span>Central operacional</span>
+              </div>
+            </div>
+
+            <div className="saas-sidebar-meta">
+              <section className="saas-sidebar-module">
+                <span className="saas-module-label">Operação</span>
+                <div className="saas-module-card">
+                  <span>Canal</span>
+                  <strong>Transporte em saúde</strong>
+                </div>
+              </section>
+
+              <section className="saas-sidebar-module">
+                <span className="saas-module-label">Sessão</span>
+                <div className="saas-sidebar-session">
+                  <div className="saas-sidebar-row">
+                    <span>Perfil</span>
+                    <strong>{roleLabels[session.role]}</strong>
+                  </div>
+                  <div className="saas-sidebar-row">
+                    <span>Usuário</span>
+                    <strong>{session.name}</strong>
+                  </div>
+                  <div className="saas-sidebar-row">
+                    <span>Solicitações</span>
+                    <strong>{visibleRequests.length}</strong>
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            <nav className="saas-sidebar-nav" aria-label="Navegação interna">
+              {internalNavItems.map((item) => (
+                <a
+                  key={item.id}
+                  href={`#${item.id}`}
+                  className={`saas-nav-link ${activeNav === item.id ? 'active' : ''}`}
+                  onClick={() => setActiveNav(item.id)}
+                >
+                  <span>{item.label}</span>
+                </a>
+              ))}
+            </nav>
           </div>
-          {!isStandalone ? (
-            <button className="cta ghost install-cta" type="button" onClick={handleInstallApp} disabled={!installPrompt}>
-              {installPrompt ? 'Instalar app' : 'Instalação disponível quando o navegador permitir'}
-            </button>
-          ) : null}
-        </section>
-      </aside>
+        </aside>
+      )}
 
       <main className="content-panel">
         <header className="topbar topbar-v2">
@@ -611,6 +679,44 @@ function App() {
             </button>
           </div>
         </header>
+
+        {!isPatientSession ? (
+          <section className="glass-card panel-card" id="visao">
+            <div className="section-head">
+              <p className="eyebrow">Resumo</p>
+              <h2>Painel operacional</h2>
+            </div>
+            <div className="profile-summary">
+              <div className="profile-avatar">{session.name.slice(0, 2).toUpperCase()}</div>
+              <div>
+                <strong>{session.name}</strong>
+                <span>{roleLabels[session.role]}</span>
+              </div>
+            </div>
+            <div className="hero-stats stats-v2">
+              <div>
+                <strong>{visibleRequests.length}</strong>
+                <span>solicitações visíveis</span>
+              </div>
+              <div>
+                <strong>{session.mustChangePin ? 'Troca pendente' : 'PIN atualizado'}</strong>
+                <span>{session.mustChangePin ? 'Primeiro acesso' : 'Sessão ativa'}</span>
+              </div>
+              <div>
+                <strong>{profileMap[session.role]}</strong>
+                <span>itens do perfil</span>
+              </div>
+            </div>
+            <div className="signals signals-v2">
+              {operationalSignals.map((signal) => (
+                <div key={signal.label}>
+                  <strong>{signal.value}</strong>
+                  <span>{signal.label}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         {session.mustChangePin && (
           <section className="glass-card alert-card">
@@ -667,7 +773,7 @@ function App() {
         </section>
 
         {session.role === 'operador' && (
-          <section className="grid two-col">
+          <section className="grid two-col" id="solicitacoes">
             <article className="glass-card panel-card">
               <div className="section-head">
                 <p className="eyebrow">Cadastro rápido</p>
@@ -729,7 +835,7 @@ function App() {
         )}
 
         {session.role === 'gerente' && (
-          <section className="glass-card panel-card">
+          <section className="glass-card panel-card" id="distribuicao">
             <div className="section-head">
               <p className="eyebrow">Distribuição</p>
               <h2>Configuração operacional da viagem</h2>
@@ -808,7 +914,7 @@ function App() {
         )}
 
         {session.role === 'motorista' && (
-          <section className="grid two-col">
+          <section className="grid two-col" id="agenda">
             <article className="glass-card panel-card">
               <div className="section-head">
                 <p className="eyebrow">Agenda mobile</p>
@@ -864,7 +970,7 @@ function App() {
         )}
 
         {(session.role === 'cliente' || session.role === 'administrador') && (
-          <section className="glass-card panel-card">
+          <section className="glass-card panel-card" id="viagens">
             <div className="section-head">
               <p className="eyebrow">Solicitação central</p>
               <h2>{session.role === 'cliente' ? 'Minhas viagens' : 'Visão global'}</h2>
@@ -901,7 +1007,7 @@ function App() {
         )}
 
         {activeRequest ? (
-          <section className="grid two-col">
+          <section className="grid two-col" id="detalhes">
             <article className="glass-card panel-card">
               <div className="section-head">
                 <p className="eyebrow">Detalhe da viagem</p>
@@ -983,37 +1089,8 @@ function App() {
           </section>
         ) : null}
 
-        <section className="glass-card">
-          <div className="section-head">
-            <p className="eyebrow">Arquitetura</p>
-            <h2>Base pronta para Cloudflare</h2>
-          </div>
-          <div className="api-grid">
-            <div>
-              <strong>Frontend</strong>
-              <p>React + TypeScript + Vite com visual responsivo e instalação PWA.</p>
-            </div>
-            <div>
-              <strong>Backend</strong>
-              <p>Pages Functions para autenticação, solicitações, mensagens e registros.</p>
-            </div>
-            <div>
-              <strong>Banco</strong>
-              <p>Cloudflare D1 para pacientes, viagens, mensagens, logs e sessões.</p>
-            </div>
-            <div>
-              <strong>Segurança</strong>
-              <p>Estrutura preparada para PIN, tokens e controle por perfil.</p>
-            </div>
-          </div>
-          <div className="pwa-note">
-            <strong>PWA</strong>
-            <p>Instalável em Android, iPhone com suporte do navegador, Windows e Linux via navegador moderno.</p>
-          </div>
-        </section>
-
         {session.role === 'administrador' ? (
-          <section className="glass-card">
+          <section className="glass-card" id="usuarios">
             <div className="section-head">
               <p className="eyebrow">Governança</p>
               <h2>Usuários reais</h2>
