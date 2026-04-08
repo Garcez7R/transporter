@@ -82,6 +82,7 @@ function App() {
   const [requestForm, setRequestForm] = useState<RequestFormState>(defaultRequestForm);
   const [messageDraft, setMessageDraft] = useState('');
   const [users, setUsers] = useState<UserRow[]>([]);
+  const [userRoleFilter, setUserRoleFilter] = useState<AccessRole | 'todos'>('todos');
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [clientFilter, setClientFilter] = useState('');
   const [activeClientId, setActiveClientId] = useState<number | null>(null);
@@ -1382,7 +1383,7 @@ function App() {
           <section className="glass-card" id="usuarios">
             <div className="section-head">
               <p className="eyebrow">Governança</p>
-              <h2>Usuários reais</h2>
+              <h2>Usuários</h2>
             </div>
             <form className="admin-create-form" onSubmit={handleCreateUser}>
               <input placeholder="Nome" value={userForm.name} onChange={(event) => setUserForm({ ...userForm, name: event.target.value })} />
@@ -1399,6 +1400,16 @@ function App() {
                 Criar usuário
               </button>
             </form>
+            <div className="filter-row">
+              <select value={userRoleFilter} onChange={(event) => setUserRoleFilter(event.target.value as AccessRole | 'todos')}>
+                <option value="todos">Todos os perfis</option>
+                <option value="cliente">Pacientes</option>
+                <option value="operador">Operadores</option>
+                <option value="gerente">Gerentes</option>
+                <option value="motorista">Motoristas</option>
+                <option value="administrador">Administradores</option>
+              </select>
+            </div>
             {users.length ? (
               <div className="admin-table">
                 <div className="admin-row admin-row-head">
@@ -1408,7 +1419,9 @@ function App() {
                   <span>Status do PIN</span>
                 </div>
                 <div className="admin-table-body">
-                  {users.map((user) => (
+                  {users
+                    .filter((user) => (userRoleFilter === 'todos' ? true : user.role === userRoleFilter))
+                    .map((user) => (
                     <div className="admin-row" key={user.id}>
                       <div className="admin-user">
                         <span className="admin-avatar">{getInitials(user.name)}</span>
