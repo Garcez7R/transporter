@@ -103,5 +103,4 @@ export interface UserFormState {
   name: string;
   document: string;
   role: AccessRole;
-  pin: string;
 }

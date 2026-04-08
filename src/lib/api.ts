@@ -152,7 +152,6 @@ export async function createUser(
     name: string;
     document: string;
     role: 'cliente' | 'operador' | 'gerente' | 'motorista' | 'administrador';
-    pin?: string;
   },
   token?: string
 ) {
@@ -161,6 +160,17 @@ export async function createUser(
     {
       method: 'POST',
       body: JSON.stringify(payload)
+    },
+    token
+  );
+}
+
+export async function resetUserPin(id: number | string, token?: string) {
+  return request<ApiResponse<{ ok: boolean }>>(
+    `/api/users/${id}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ resetPin: true })
     },
     token
   );

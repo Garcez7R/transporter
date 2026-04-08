@@ -10,7 +10,6 @@ type CreateUserBody = {
   name?: string;
   document?: string;
   role?: UserRole;
-  pin?: string;
 };
 
 function normalizeDocument(value: string) {
@@ -24,15 +23,21 @@ export async function onRequestGet({ request, env }: { request: Request; env: En
     return json({ ok: true, rows: [] });
   }
 
-  if (!session || session.role !== 'administrador') {
+  if (!session || !['administrador', 'gerente'].includes(session.role)) {
     return json({ ok: false, error: 'Sem permissão.' }, { status: 403 });
   }
 
-  const result = await env.DB.prepare(
-    `SELECT id, role, name, document, pin_must_change AS pinMustChange, created_at AS createdAt, last_login_at AS lastLoginAt
-     FROM users
-     ORDER BY created_at DESC`
-  ).all();
+  const baseQuery =
+    session.role === 'gerente'
+      ? `SELECT id, role, name, document, pin_must_change AS pinMustChange, created_at AS createdAt, last_login_at AS lastLoginAt
+         FROM users
+         WHERE role = 'operador'
+         ORDER BY created_at DESC`
+      : `SELECT id, role, name, document, pin_must_change AS pinMustChange, created_at AS createdAt, last_login_at AS lastLoginAt
+         FROM users
+         ORDER BY created_at DESC`;
+
+  const result = await env.DB.prepare(baseQuery).all();
 
   return json({ ok: true, rows: result.results ?? [] });
 }
@@ -62,7 +67,7 @@ export async function onRequestPost({ request, env }: { request: Request; env: E
     return json({ ok: false, error: 'Já existe um usuário com esse documento.' }, { status: 409 });
   }
 
-  const pin = body.pin?.trim() || '0000';
+  const pin = '0000';
   const result = await env.DB.prepare(
     'INSERT INTO users (role, name, document, pin_hash, pin_must_change) VALUES (?, ?, ?, ?, 1)'
   )

@@ -12,6 +12,7 @@ import {
   login as loginApi,
   logout as logoutApi,
   me,
+  resetUserPin,
   updateClient,
   updateRequest
 } from './lib/api';
@@ -107,8 +108,7 @@ function App() {
   const [userForm, setUserForm] = useState<UserFormState>({
     name: '',
     document: '',
-    role: 'operador',
-    pin: ''
+    role: 'operador'
   });
   const [patientFontLarge, setPatientFontLarge] = useState(() => readJson<boolean>('transporter:patient-font', false));
   const [activeNav, setActiveNav] = useState('visao');
@@ -167,7 +167,7 @@ function App() {
       if (!cancelled) showBanner('error', 'Não foi possível carregar as solicitações.');
     });
 
-    if (session.role === 'administrador') {
+    if (session.role === 'administrador' || session.role === 'gerente') {
       listUsers(session.token)
         .then((response) => {
           if (!cancelled) setUsers(response.rows ?? []);
@@ -191,6 +191,13 @@ function App() {
       cancelled = true;
     };
   }, [session?.token, session?.role]);
+
+  useEffect(() => {
+    if (!session) return;
+    if (session.role === 'gerente') {
+      setUserRoleFilter('operador');
+    }
+  }, [session?.role]);
 
   useEffect(() => {
     if (!requests.length) {
@@ -373,19 +380,30 @@ function App() {
         {
           name: userForm.name.trim(),
           document: normalizeDocument(userForm.document),
-          role: userForm.role,
-          pin: userForm.pin.trim() || '0000'
+          role: userForm.role
         },
         session.token
       );
 
-      setUserForm({ name: '', document: '', role: 'operador', pin: '' });
+      setUserForm({ name: '', document: '', role: 'operador' });
       const response = await listUsers(session.token);
       setUsers(response.rows ?? []);
       pushToast('success', 'Usuário criado com sucesso.');
       setBanner(null);
     } catch (error) {
       showBanner('error', error instanceof Error ? error.message : 'Não foi possível criar o usuário.');
+    }
+  }
+
+  async function handleResetUserPin(user: UserRow) {
+    if (!session?.token) return;
+    try {
+      await resetUserPin(user.id, session.token);
+      pushToast('success', 'PIN resetado para 0000.');
+      const response = await listUsers(session.token);
+      setUsers(response.rows ?? []);
+    } catch (error) {
+      showBanner('error', error instanceof Error ? error.message : 'Não foi possível resetar o PIN.');
     }
   }
 
@@ -529,6 +547,13 @@ function App() {
   const isPatientSession = session?.role === 'cliente';
   const canManagePatients = session ? ['operador', 'gerente', 'administrador'].includes(session.role) : false;
   const canEditTrip = session ? ['operador', 'gerente', 'administrador'].includes(session.role) : false;
+  const canResetUser = (user: UserRow) => {
+    if (!session) return false;
+    if (session.role === 'administrador') return true;
+    if (session.role === 'gerente') return user.role === 'operador';
+    return false;
+  };
+  const canViewUsers = session ? ['administrador', 'gerente'].includes(session.role) : false;
   const internalNavItems = (() => {
     if (!session || isPatientSession) return [];
 
@@ -1330,7 +1355,7 @@ function App() {
                     Confirmar agenda recebida
                   </button>
                 ) : null}
-                {session.role !== 'cliente' && session.role !== 'motorista' ? (
+                {session.role === 'operador' || session.role === 'administrador' ? (
                   <button className="cta ghost" type="button" onClick={handleResetClientPin}>
                     Resetar PIN do paciente
                   </button>
@@ -1379,37 +1404,40 @@ function App() {
           </section>
         ) : null}
 
-        {session.role === 'administrador' ? (
+        {canViewUsers ? (
           <section className="glass-card" id="usuarios">
             <div className="section-head">
-              <p className="eyebrow">Governança</p>
-              <h2>Usuários</h2>
+              <p className="eyebrow">{session.role === 'gerente' ? 'Equipe' : 'Governança'}</p>
+              <h2>{session.role === 'gerente' ? 'Operadores' : 'Usuários'}</h2>
             </div>
-            <form className="admin-create-form" onSubmit={handleCreateUser}>
-              <input placeholder="Nome" value={userForm.name} onChange={(event) => setUserForm({ ...userForm, name: event.target.value })} />
-              <input placeholder="CPF" value={userForm.document} onChange={(event) => setUserForm({ ...userForm, document: formatDocument(event.target.value) })} />
-              <select value={userForm.role} onChange={(event) => setUserForm({ ...userForm, role: event.target.value as AccessRole })}>
-                <option value="cliente">paciente</option>
-                <option value="operador">operador</option>
-                <option value="gerente">gerente</option>
-                <option value="motorista">motorista</option>
-                <option value="administrador">administrador</option>
-              </select>
-              <input placeholder="PIN inicial (opcional)" value={userForm.pin} onChange={(event) => setUserForm({ ...userForm, pin: event.target.value })} />
-              <button className="cta" type="submit">
-                Criar usuário
-              </button>
-            </form>
-            <div className="filter-row">
-              <select value={userRoleFilter} onChange={(event) => setUserRoleFilter(event.target.value as AccessRole | 'todos')}>
-                <option value="todos">Todos os perfis</option>
-                <option value="cliente">Pacientes</option>
-                <option value="operador">Operadores</option>
-                <option value="gerente">Gerentes</option>
-                <option value="motorista">Motoristas</option>
-                <option value="administrador">Administradores</option>
-              </select>
-            </div>
+            {session.role === 'administrador' ? (
+              <form className="admin-create-form" onSubmit={handleCreateUser}>
+                <input placeholder="Nome" value={userForm.name} onChange={(event) => setUserForm({ ...userForm, name: event.target.value })} />
+                <input placeholder="CPF" value={userForm.document} onChange={(event) => setUserForm({ ...userForm, document: formatDocument(event.target.value) })} />
+                <select value={userForm.role} onChange={(event) => setUserForm({ ...userForm, role: event.target.value as AccessRole })}>
+                  <option value="cliente">paciente</option>
+                  <option value="operador">operador</option>
+                  <option value="gerente">gerente</option>
+                  <option value="motorista">motorista</option>
+                  <option value="administrador">administrador</option>
+                </select>
+                <button className="cta" type="submit">
+                  Criar usuário (PIN inicial 0000)
+                </button>
+              </form>
+            ) : null}
+            {session.role === 'administrador' ? (
+              <div className="filter-row">
+                <select value={userRoleFilter} onChange={(event) => setUserRoleFilter(event.target.value as AccessRole | 'todos')}>
+                  <option value="todos">Todos os perfis</option>
+                  <option value="cliente">Pacientes</option>
+                  <option value="operador">Operadores</option>
+                  <option value="gerente">Gerentes</option>
+                  <option value="motorista">Motoristas</option>
+                  <option value="administrador">Administradores</option>
+                </select>
+              </div>
+            ) : null}
             {users.length ? (
               <div className="admin-table">
                 <div className="admin-row admin-row-head">
@@ -1417,6 +1445,7 @@ function App() {
                   <span>Perfil</span>
                   <span>CPF</span>
                   <span>Status do PIN</span>
+                  <span>Ação</span>
                 </div>
                 <div className="admin-table-body">
                   {users
@@ -1430,6 +1459,15 @@ function App() {
                       <span>{roleLabels[user.role as AccessRole] ?? user.role}</span>
                       <span>{formatDocument(user.document)}</span>
                       <span>{user.pinMustChange ? 'PIN inicial pendente' : 'PIN alterado'}</span>
+                      <span>
+                        {canResetUser(user) ? (
+                          <button className="cta ghost" type="button" onClick={() => handleResetUserPin(user)}>
+                            Resetar PIN
+                          </button>
+                        ) : (
+                          '-'
+                        )}
+                      </span>
                     </div>
                   ))}
                 </div>

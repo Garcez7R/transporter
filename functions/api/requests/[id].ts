@@ -305,12 +305,15 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
       'departureAt',
       'arrivalEta',
       'phoneVisible',
-      'message',
-      'pinStatus'
+      'message'
     ];
     if (hasDisallowed(allowed)) {
       return json({ ok: false, error: 'Gerência não pode alterar confirmação do paciente.' }, { status: 403 });
     }
+  }
+
+  if (body.pinStatus !== undefined && !['operador', 'administrador'].includes(role)) {
+    return json({ ok: false, error: 'Sem permissão para resetar o PIN do paciente.' }, { status: 403 });
   }
 
   const updates: string[] = [];
