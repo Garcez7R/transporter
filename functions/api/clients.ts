@@ -8,10 +8,15 @@ type ClientBody = {
   name?: string;
   document?: string;
   phone?: string;
+  cep?: string;
   address?: string;
 };
 
 function normalizeDocument(value: string) {
+  return value.replace(/\D/g, '');
+}
+
+function normalizeCep(value: string) {
   return value.replace(/\D/g, '');
 }
 
@@ -28,11 +33,11 @@ export async function onRequestGet({ request, env }: { request: Request; env: En
 
   const url = new URL(request.url);
   const q = url.searchParams.get('q')?.trim() ?? '';
-  const where = q ? 'WHERE name LIKE ? OR document LIKE ? OR phone LIKE ?' : '';
-  const params = q ? [`%${q}%`, `%${normalizeDocument(q)}%`, `%${q}%`] : [];
+  const where = q ? 'WHERE name LIKE ? OR document LIKE ? OR phone LIKE ? OR cep LIKE ?' : '';
+  const params = q ? [`%${q}%`, `%${normalizeDocument(q)}%`, `%${q}%`, `%${normalizeCep(q)}%`] : [];
 
   const result = await env.DB.prepare(
-    `SELECT id, name, document, phone, address, created_at AS createdAt
+    `SELECT id, name, document, phone, cep, address, created_at AS createdAt
      FROM clients
      ${where}
      ORDER BY created_at DESC
@@ -67,9 +72,9 @@ export async function onRequestPost({ request, env }: { request: Request; env: E
   }
 
   const result = await env.DB.prepare(
-    'INSERT INTO clients (name, document, phone, address) VALUES (?, ?, ?, ?)'
+    'INSERT INTO clients (name, document, phone, cep, address) VALUES (?, ?, ?, ?, ?)'
   )
-    .bind(body.name, document, body.phone ?? '', body.address ?? '')
+    .bind(body.name, document, body.phone ?? '', body.cep ? normalizeCep(body.cep) : '', body.address ?? '')
     .run();
 
   const existingUser = await env.DB.prepare('SELECT id FROM users WHERE document = ? LIMIT 1')
@@ -100,6 +105,7 @@ export async function onRequestPost({ request, env }: { request: Request; env: E
       name: body.name,
       document,
       phone: body.phone ?? '',
+      cep: body.cep ?? '',
       address: body.address ?? ''
     }
   });

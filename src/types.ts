@@ -96,6 +96,7 @@ export interface ClientFormState {
   name: string;
   document: string;
   phone: string;
+  cep: string;
   address: string;
 }
 

@@ -139,6 +139,7 @@ export type ClientRow = {
   name: string;
   document: string;
   phone?: string;
+  cep?: string;
   address?: string;
   createdAt?: string;
 };

@@ -16,7 +16,7 @@ import {
   updateClient,
   updateRequest
 } from './lib/api';
-import { formatDocument, normalizeDocument, readJson, removeItem, SESSION_KEY, currentStamp, writeJson } from './lib/persistence';
+import { formatCep, formatDocument, normalizeDocument, readJson, removeItem, SESSION_KEY, currentStamp, writeJson } from './lib/persistence';
 import type { AccessRole, ClientFormState, RequestFormState, RequestStatus, SessionUser, TripRequest, UserFormState } from './types';
 import type { ClientRow, UserRow } from './lib/api';
 
@@ -91,6 +91,7 @@ function App() {
     name: '',
     document: '',
     phone: '',
+    cep: '',
     address: ''
   });
   const [tripForm, setTripForm] = useState({
@@ -417,11 +418,12 @@ function App() {
           name: clientForm.name.trim(),
           document: normalizeDocument(clientForm.document),
           phone: clientForm.phone.trim(),
+          cep: clientForm.cep.trim(),
           address: clientForm.address.trim()
         },
         session.token
       );
-      setClientForm({ name: '', document: '', phone: '', address: '' });
+      setClientForm({ name: '', document: '', phone: '', cep: '', address: '' });
       pushToast('success', 'Paciente cadastrado.');
       await refreshClients(session.token, clientFilter);
     } catch (error) {
@@ -440,6 +442,7 @@ function App() {
           name: clientForm.name.trim(),
           document: normalizeDocument(clientForm.document),
           phone: clientForm.phone.trim(),
+          cep: clientForm.cep.trim(),
           address: clientForm.address.trim()
         },
         session.token
@@ -1008,6 +1011,7 @@ function App() {
                   <span>Paciente</span>
                   <span>CPF</span>
                   <span>Telefone</span>
+                  <span>CEP</span>
                   <span>Endereço</span>
                 </div>
                 <div className="admin-table-body">
@@ -1022,6 +1026,7 @@ function App() {
                             name: client.name ?? '',
                             document: formatDocument(client.document ?? ''),
                             phone: client.phone ?? '',
+                            cep: formatCep(client.cep ?? ''),
                             address: client.address ?? ''
                           });
                         }}
@@ -1032,6 +1037,7 @@ function App() {
                         </div>
                         <span>{formatDocument(client.document)}</span>
                         <span>{client.phone || '-'}</span>
+                        <span>{formatCep(client.cep ?? '') || '-'}</span>
                         <span>{client.address || '-'}</span>
                       </div>
                     ))
@@ -1055,11 +1061,12 @@ function App() {
                 <input placeholder="Nome completo" value={clientForm.name} onChange={(event) => setClientForm({ ...clientForm, name: event.target.value })} />
                 <input placeholder="CPF" value={clientForm.document} onChange={(event) => setClientForm({ ...clientForm, document: formatDocument(event.target.value) })} />
                 <input placeholder="Telefone" value={clientForm.phone} onChange={(event) => setClientForm({ ...clientForm, phone: event.target.value })} />
-                <input placeholder="Endereço" value={clientForm.address} onChange={(event) => setClientForm({ ...clientForm, address: event.target.value })} />
+                <input placeholder="CEP" value={clientForm.cep} onChange={(event) => setClientForm({ ...clientForm, cep: formatCep(event.target.value) })} />
+                <input placeholder="Endereço completo" value={clientForm.address} onChange={(event) => setClientForm({ ...clientForm, address: event.target.value })} />
                 <div className="form-actions">
                   <button className="cta ghost" type="button" onClick={() => {
                     setActiveClientId(null);
-                    setClientForm({ name: '', document: '', phone: '', address: '' });
+                    setClientForm({ name: '', document: '', phone: '', cep: '', address: '' });
                   }}>
                     Limpar
                   </button>

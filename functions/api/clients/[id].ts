@@ -7,10 +7,15 @@ type UpdateBody = {
   name?: string;
   document?: string;
   phone?: string;
+  cep?: string;
   address?: string;
 };
 
 function normalizeDocument(value: string) {
+  return value.replace(/\D/g, '');
+}
+
+function normalizeCep(value: string) {
   return value.replace(/\D/g, '');
 }
 
@@ -50,6 +55,7 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
   if (body.name !== undefined) setField('name', body.name);
   if (body.document !== undefined) setField('document', normalizeDocument(body.document));
   if (body.phone !== undefined) setField('phone', body.phone);
+  if (body.cep !== undefined) setField('cep', normalizeCep(body.cep));
   if (body.address !== undefined) setField('address', body.address);
 
   if (!updates.length) {
