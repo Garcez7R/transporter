@@ -867,6 +867,18 @@ h1 {
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
+.admin-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  background: linear-gradient(145deg, rgba(125, 224, 213, 0.22), rgba(140, 184, 255, 0.18));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
 .request-row:hover,
 .fleet-row:hover,
 .admin-card:hover,

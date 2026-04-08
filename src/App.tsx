@@ -393,6 +393,15 @@ function App() {
   ).length;
   const pendingPinChange = visibleRequests.filter((request) => request.pinStatus !== 'active').length;
 
+  function getInitials(name: string) {
+    const cleaned = name.trim().replace(/\s+/g, ' ');
+    if (!cleaned) return '??';
+    const parts = cleaned.split(' ');
+    const first = parts[0]?.[0] ?? '';
+    const last = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? '' : parts[0]?.[1] ?? '';
+    return `${first}${last}`.toUpperCase();
+  }
+
   async function handleInstallApp() {
     if (!installPrompt) return;
     installPrompt.prompt();
@@ -720,7 +729,7 @@ function App() {
               {roleDescriptions[session.role]} O acesso está vinculado ao CPF {formatDocument(session.document)}.
             </p>
             <div className="profile-summary">
-              <div className="profile-avatar">{session.name.slice(0, 2).toUpperCase()}</div>
+              <div className="profile-avatar">{getInitials(session.name)}</div>
               <div>
                 <strong>{session.name}</strong>
                 <span>{roleLabels[session.role]}</span>
@@ -736,7 +745,7 @@ function App() {
               <h2>Painel operacional</h2>
             </div>
             <div className="profile-summary">
-              <div className="profile-avatar">{session.name.slice(0, 2).toUpperCase()}</div>
+              <div className="profile-avatar">{getInitials(session.name)}</div>
               <div>
                 <strong>{session.name}</strong>
                 <span>{roleLabels[session.role]}</span>
@@ -1150,6 +1159,7 @@ function App() {
               {users.length ? (
                 users.map((user) => (
                   <article className="admin-card" key={user.id}>
+                    <div className="admin-avatar">{getInitials(user.name)}</div>
                     <strong>{user.name}</strong>
                     <p>{roleLabels[user.role as AccessRole] ?? user.role}</p>
                     <small>{formatDocument(user.document)}</small>
