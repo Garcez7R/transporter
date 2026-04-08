@@ -759,19 +759,6 @@ function App() {
           </section>
         ) : null}
 
-        <section className="grid profiles-grid profiles-grid-v2">
-          {profiles.map((profile) => (
-            <article className={`glass-card profile-card profile-card-v2 ${session.role === profile.role ? 'profile-active' : ''}`} key={profile.role}>
-              <div className="card-top">
-                <span className="tag">{roleLabels[profile.role]}</span>
-                <strong>{profile.count}</strong>
-              </div>
-              <h3>{profile.highlight}</h3>
-              <p>{profile.description}</p>
-            </article>
-          ))}
-        </section>
-
         {session.role === 'operador' && (
           <section className="grid two-col" id="solicitacoes">
             <article className="glass-card panel-card">
