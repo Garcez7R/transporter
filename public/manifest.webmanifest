@@ -1,0 +1,10 @@
+{
+  "name": "Transporter",
+  "short_name": "Transporter",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07111f",
+  "theme_color": "#07111f",
+  "description": "Gestão de transporte e logística com suporte PWA.",
+  "icons": []
+}

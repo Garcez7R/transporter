@@ -1,0 +1,8 @@
+name = "transporter"
+compatibility_date = "2026-04-08"
+pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "transporter"
+database_id = "REPLACE_WITH_REAL_D1_ID"

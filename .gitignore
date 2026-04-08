@@ -1,0 +1,7 @@
+node_modules
+dist
+.wrangler
+.vite
+.DS_Store
+*.log
+*.tsbuildinfo
