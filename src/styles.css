@@ -467,6 +467,20 @@ h1 {
   gap: 16px;
 }
 
+.internal-header-name {
+  display: grid;
+  gap: 4px;
+}
+
+.internal-header-name strong {
+  font-size: 1.1rem;
+}
+
+.internal-header-name span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 .patient-topbar {
   justify-content: flex-end;
 }
@@ -1066,6 +1080,13 @@ h1 {
 .assignment-grid {
   display: grid;
   gap: 12px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .login-form label,

@@ -95,6 +95,7 @@ export async function updateRequest(
   id: string,
   payload: {
     status?: RequestStatus;
+    destination?: string;
     driver?: string;
     vehicle?: string;
     notes?: string;
@@ -133,6 +134,15 @@ export type UserRow = {
   lastLoginAt?: string | null;
 };
 
+export type ClientRow = {
+  id: number;
+  name: string;
+  document: string;
+  phone?: string;
+  address?: string;
+  createdAt?: string;
+};
+
 export async function listUsers(token?: string) {
   return request<ApiResponse<{ rows: UserRow[] }>>('/api/users', undefined, token);
 }
@@ -150,6 +160,50 @@ export async function createUser(
     '/api/users',
     {
       method: 'POST',
+      body: JSON.stringify(payload)
+    },
+    token
+  );
+}
+
+export async function listClients(token?: string, query?: string) {
+  const params = query ? `?q=${encodeURIComponent(query)}` : '';
+  return request<ApiResponse<{ rows: ClientRow[] }>>(`/api/clients${params}`, undefined, token);
+}
+
+export async function createClient(
+  payload: {
+    name: string;
+    document: string;
+    phone?: string;
+    address?: string;
+  },
+  token?: string
+) {
+  return request<ApiResponse<{ row: ClientRow }>>(
+    '/api/clients',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    },
+    token
+  );
+}
+
+export async function updateClient(
+  id: number | string,
+  payload: {
+    name?: string;
+    document?: string;
+    phone?: string;
+    address?: string;
+  },
+  token?: string
+) {
+  return request<ApiResponse<{ row: ClientRow }>>(
+    `/api/clients/${id}`,
+    {
+      method: 'PATCH',
       body: JSON.stringify(payload)
     },
     token

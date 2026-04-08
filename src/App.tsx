@@ -3,18 +3,21 @@ import type { FormEvent } from 'react';
 import { demoUsers, profiles, defaultRequestForm } from './data';
 import {
   changePin,
+  createClient,
   createRequest,
   createUser,
+  listClients,
   listRequests,
   listUsers,
   login as loginApi,
   logout as logoutApi,
   me,
+  updateClient,
   updateRequest
 } from './lib/api';
 import { formatDocument, normalizeDocument, readJson, removeItem, SESSION_KEY, currentStamp, writeJson } from './lib/persistence';
-import type { AccessRole, RequestFormState, RequestStatus, SessionUser, TripRequest, UserFormState } from './types';
-import type { UserRow } from './lib/api';
+import type { AccessRole, ClientFormState, RequestFormState, RequestStatus, SessionUser, TripRequest, UserFormState } from './types';
+import type { ClientRow, UserRow } from './lib/api';
 
 type BannerState = {
   type: 'success' | 'error';
@@ -31,6 +34,7 @@ type RequestPatch = Partial<
   Pick<
     TripRequest,
     | 'status'
+    | 'destination'
     | 'driver'
     | 'vehicle'
     | 'notes'
@@ -78,6 +82,27 @@ function App() {
   const [requestForm, setRequestForm] = useState<RequestFormState>(defaultRequestForm);
   const [messageDraft, setMessageDraft] = useState('');
   const [users, setUsers] = useState<UserRow[]>([]);
+  const [clients, setClients] = useState<ClientRow[]>([]);
+  const [clientFilter, setClientFilter] = useState('');
+  const [activeClientId, setActiveClientId] = useState<number | null>(null);
+  const [clientForm, setClientForm] = useState<ClientFormState>({
+    name: '',
+    document: '',
+    phone: '',
+    address: ''
+  });
+  const [tripForm, setTripForm] = useState({
+    destination: '',
+    boardingPoint: '',
+    departureAt: '',
+    arrivalEta: '',
+    notes: '',
+    companions: '',
+    status: 'em_atendimento' as RequestStatus,
+    driver: '',
+    vehicle: '',
+    phoneVisible: false
+  });
   const [userForm, setUserForm] = useState<UserFormState>({
     name: '',
     document: '',
@@ -151,6 +176,16 @@ function App() {
         });
     }
 
+    if (['operador', 'gerente', 'administrador'].includes(session.role)) {
+      listClients(session.token)
+        .then((response) => {
+          if (!cancelled) setClients(response.rows ?? []);
+        })
+        .catch(() => {
+          if (!cancelled) showBanner('error', 'Não foi possível carregar os pacientes.');
+        });
+    }
+
     return () => {
       cancelled = true;
     };
@@ -168,11 +203,28 @@ function App() {
     }
   }, [requests, session, requestFilter, activeRequestId]);
 
+
   const visibleRequests = useMemo(
     () => filteredRequests(requests, session, requestFilter),
     [requests, session, requestFilter]
   );
   const activeRequest = visibleRequests.find((request) => request.id === activeRequestId) ?? visibleRequests[0] ?? null;
+
+  useEffect(() => {
+    if (!activeRequest) return;
+    setTripForm({
+      destination: activeRequest.destination,
+      boardingPoint: activeRequest.boardingPoint,
+      departureAt: activeRequest.departureAt,
+      arrivalEta: activeRequest.arrivalEta,
+      notes: activeRequest.notes,
+      companions: activeRequest.companions,
+      status: activeRequest.status,
+      driver: activeRequest.driver,
+      vehicle: activeRequest.vehicle,
+      phoneVisible: Boolean(activeRequest.phoneVisible)
+    });
+  }, [activeRequest?.id]);
 
   async function refreshRequests(token = session?.token) {
     if (!token) {
@@ -182,6 +234,17 @@ function App() {
 
     const response = await listRequests(token);
     setRequests(response.rows ?? []);
+  }
+
+  async function refreshClients(token = session?.token, query = '') {
+    if (!token) {
+      setClients([]);
+      return;
+    }
+
+    const response = await listClients(token, query);
+    setClients(response.rows ?? []);
+    return response.rows ?? [];
   }
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
@@ -325,6 +388,69 @@ function App() {
     }
   }
 
+  async function handleCreateClient(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!session?.token) return;
+
+    try {
+      await createClient(
+        {
+          name: clientForm.name.trim(),
+          document: normalizeDocument(clientForm.document),
+          phone: clientForm.phone.trim(),
+          address: clientForm.address.trim()
+        },
+        session.token
+      );
+      setClientForm({ name: '', document: '', phone: '', address: '' });
+      pushToast('success', 'Paciente cadastrado.');
+      await refreshClients(session.token, clientFilter);
+    } catch (error) {
+      showBanner('error', error instanceof Error ? error.message : 'Não foi possível cadastrar o paciente.');
+    }
+  }
+
+  async function handleUpdateClient(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!session?.token || !activeClientId) return;
+
+    try {
+      await updateClient(
+        activeClientId,
+        {
+          name: clientForm.name.trim(),
+          document: normalizeDocument(clientForm.document),
+          phone: clientForm.phone.trim(),
+          address: clientForm.address.trim()
+        },
+        session.token
+      );
+      pushToast('success', 'Paciente atualizado.');
+      await refreshClients(session.token, clientFilter);
+    } catch (error) {
+      showBanner('error', error instanceof Error ? error.message : 'Não foi possível atualizar o paciente.');
+    }
+  }
+
+  async function handleSaveTrip(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!activeRequest || !session?.token) return;
+
+    await patchRequest(activeRequest.id, {
+      destination: tripForm.destination,
+      boardingPoint: tripForm.boardingPoint,
+      departureAt: tripForm.departureAt,
+      arrivalEta: tripForm.arrivalEta,
+      notes: tripForm.notes,
+      companions: tripForm.companions,
+      status: tripForm.status,
+      driver: tripForm.driver,
+      vehicle: tripForm.vehicle,
+      phoneVisible: tripForm.phoneVisible
+    });
+    pushToast('success', 'Viagem atualizada.');
+  }
+
 
   function parseDate(value: string) {
     if (!value) return null;
@@ -400,18 +526,35 @@ function App() {
         ? 'Nenhuma viagem registrada para este CPF.'
         : 'Nenhuma solicitação registrada no momento.';
   const isPatientSession = session?.role === 'cliente';
+  const canManagePatients = session ? ['operador', 'gerente', 'administrador'].includes(session.role) : false;
+  const canEditTrip = session ? ['operador', 'gerente', 'administrador'].includes(session.role) : false;
   const internalNavItems = (() => {
     if (!session || isPatientSession) return [];
 
     const base = [{ id: 'visao', label: 'Visão geral' }];
     if (session.role === 'operador') {
-      base.push({ id: 'solicitacoes', label: 'Solicitações' }, { id: 'detalhes', label: 'Detalhes' }, { id: 'mensagens', label: 'Mensagens' });
+      base.push(
+        { id: 'solicitacoes', label: 'Solicitações' },
+        { id: 'pacientes', label: 'Pacientes' },
+        { id: 'detalhes', label: 'Detalhes' },
+        { id: 'mensagens', label: 'Mensagens' }
+      );
     } else if (session.role === 'gerente') {
-      base.push({ id: 'distribuicao', label: 'Distribuição' }, { id: 'detalhes', label: 'Detalhes' }, { id: 'mensagens', label: 'Mensagens' });
+      base.push(
+        { id: 'distribuicao', label: 'Distribuição' },
+        { id: 'pacientes', label: 'Pacientes' },
+        { id: 'detalhes', label: 'Detalhes' },
+        { id: 'mensagens', label: 'Mensagens' }
+      );
     } else if (session.role === 'motorista') {
       base.push({ id: 'agenda', label: 'Agenda' }, { id: 'detalhes', label: 'Detalhes' }, { id: 'mensagens', label: 'Mensagens' });
     } else if (session.role === 'administrador') {
-      base.push({ id: 'viagens', label: 'Viagens' }, { id: 'detalhes', label: 'Detalhes' }, { id: 'usuarios', label: 'Usuários' });
+      base.push(
+        { id: 'viagens', label: 'Viagens' },
+        { id: 'pacientes', label: 'Pacientes' },
+        { id: 'detalhes', label: 'Detalhes' },
+        { id: 'usuarios', label: 'Usuários' }
+      );
     }
 
     return base;
@@ -673,21 +816,14 @@ function App() {
         ) : (
           <section className="glass-card panel-card internal-header">
             <div className="internal-header-top">
-              <div>
-                <p className="eyebrow">Operação</p>
-                <h2>Painel operacional</h2>
+              <div className="internal-header-name">
+                <strong>{session.name}</strong>
+                <span>{roleLabels[session.role]}</span>
               </div>
               <div className="topbar-actions">
                 <button className="cta ghost" onClick={handleLogout} type="button">
                   Sair
                 </button>
-              </div>
-            </div>
-            <div className="profile-summary">
-              <div className="profile-avatar">{getInitials(session.name)}</div>
-              <div>
-                <strong>{session.name}</strong>
-                <span>{roleLabels[session.role]}</span>
               </div>
             </div>
           </section>
@@ -816,6 +952,96 @@ function App() {
                   </div>
                 )}
               </div>
+            </article>
+          </section>
+        )}
+
+        {canManagePatients && (
+          <section className="grid two-col" id="pacientes">
+            <article className="glass-card panel-card">
+              <div className="section-head">
+                <p className="eyebrow">Pacientes</p>
+                <h2>Cadastro e consulta</h2>
+              </div>
+              <div className="filter-row">
+                <input
+                  placeholder="Buscar por nome, CPF ou telefone"
+                  value={clientFilter}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setClientFilter(value);
+                    if (!session?.token) return;
+                    if (!value || value.length >= 3) {
+                      refreshClients(session.token, value).catch(() => undefined);
+                    }
+                  }}
+                />
+              </div>
+              <div className="admin-table">
+                <div className="admin-row admin-row-head">
+                  <span>Paciente</span>
+                  <span>CPF</span>
+                  <span>Telefone</span>
+                  <span>Endereço</span>
+                </div>
+                <div className="admin-table-body">
+                  {clients.length ? (
+                    clients.map((client) => (
+                      <div
+                        className={`admin-row ${activeClientId === client.id ? 'request-selected' : ''}`}
+                        key={client.id}
+                        onClick={() => {
+                          setActiveClientId(client.id);
+                          setClientForm({
+                            name: client.name ?? '',
+                            document: formatDocument(client.document ?? ''),
+                            phone: client.phone ?? '',
+                            address: client.address ?? ''
+                          });
+                        }}
+                      >
+                        <div className="admin-user">
+                          <span className="admin-avatar">{getInitials(client.name ?? '')}</span>
+                          <strong>{client.name}</strong>
+                        </div>
+                        <span>{formatDocument(client.document)}</span>
+                        <span>{client.phone || '-'}</span>
+                        <span>{client.address || '-'}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="empty-state">
+                      <div className="empty-icon"></div>
+                      <strong>Nenhum paciente encontrado</strong>
+                      <p>Cadastre um novo paciente para começar.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </article>
+
+            <article className="glass-card panel-card">
+              <div className="section-head">
+                <p className="eyebrow">Dados do paciente</p>
+                <h2>{activeClientId ? 'Editar paciente' : 'Novo paciente'}</h2>
+              </div>
+              <form className="request-form" onSubmit={activeClientId ? handleUpdateClient : handleCreateClient}>
+                <input placeholder="Nome completo" value={clientForm.name} onChange={(event) => setClientForm({ ...clientForm, name: event.target.value })} />
+                <input placeholder="CPF" value={clientForm.document} onChange={(event) => setClientForm({ ...clientForm, document: formatDocument(event.target.value) })} />
+                <input placeholder="Telefone" value={clientForm.phone} onChange={(event) => setClientForm({ ...clientForm, phone: event.target.value })} />
+                <input placeholder="Endereço" value={clientForm.address} onChange={(event) => setClientForm({ ...clientForm, address: event.target.value })} />
+                <div className="form-actions">
+                  <button className="cta ghost" type="button" onClick={() => {
+                    setActiveClientId(null);
+                    setClientForm({ name: '', document: '', phone: '', address: '' });
+                  }}>
+                    Limpar
+                  </button>
+                  <button className="cta" type="submit">
+                    {activeClientId ? 'Salvar alterações' : 'Cadastrar paciente'}
+                  </button>
+                </div>
+              </form>
             </article>
           </section>
         )}
@@ -1009,6 +1235,83 @@ function App() {
                 <p><strong>Confirmação:</strong> {activeRequest.clientConfirmedAt ?? 'pendente'}</p>
                 <p><strong>Observações:</strong> {activeRequest.notes}</p>
               </div>
+
+              {canEditTrip ? (
+                <form className="request-form" onSubmit={handleSaveTrip}>
+                  <input
+                    placeholder="Destino"
+                    value={tripForm.destination}
+                    onChange={(event) => setTripForm({ ...tripForm, destination: event.target.value })}
+                  />
+                  <input
+                    placeholder="Local de embarque"
+                    value={tripForm.boardingPoint}
+                    onChange={(event) => setTripForm({ ...tripForm, boardingPoint: event.target.value })}
+                  />
+                  <input
+                    placeholder="Saída prevista"
+                    value={tripForm.departureAt}
+                    onChange={(event) => setTripForm({ ...tripForm, departureAt: event.target.value })}
+                  />
+                  <input
+                    placeholder="Chegada prevista"
+                    value={tripForm.arrivalEta}
+                    onChange={(event) => setTripForm({ ...tripForm, arrivalEta: event.target.value })}
+                  />
+                  <input
+                    placeholder="Acompanhantes / carga"
+                    value={tripForm.companions}
+                    onChange={(event) => setTripForm({ ...tripForm, companions: event.target.value })}
+                  />
+                  <textarea
+                    placeholder="Observações"
+                    value={tripForm.notes}
+                    onChange={(event) => setTripForm({ ...tripForm, notes: event.target.value })}
+                  />
+                  <label>
+                    <span>Status</span>
+                    <select
+                      value={tripForm.status}
+                      onChange={(event) => setTripForm({ ...tripForm, status: event.target.value as RequestStatus })}
+                    >
+                      <option value="rascunho">rascunho</option>
+                      <option value="em_atendimento">em_atendimento</option>
+                      <option value="aguardando_distribuicao">aguardando_distribuicao</option>
+                      <option value="agendada">agendada</option>
+                      <option value="em_rota">em_rota</option>
+                      <option value="concluida">concluida</option>
+                      <option value="cancelada">cancelada</option>
+                    </select>
+                  </label>
+                  {(session?.role === 'gerente' || session?.role === 'administrador') && (
+                    <>
+                      <input
+                        placeholder="Motorista"
+                        value={tripForm.driver}
+                        onChange={(event) => setTripForm({ ...tripForm, driver: event.target.value })}
+                      />
+                      <input
+                        placeholder="Veículo"
+                        value={tripForm.vehicle}
+                        onChange={(event) => setTripForm({ ...tripForm, vehicle: event.target.value })}
+                      />
+                      <label>
+                        <span>Telefone visível</span>
+                        <select
+                          value={tripForm.phoneVisible ? 'sim' : 'nao'}
+                          onChange={(event) => setTripForm({ ...tripForm, phoneVisible: event.target.value === 'sim' })}
+                        >
+                          <option value="sim">sim</option>
+                          <option value="nao">nao</option>
+                        </select>
+                      </label>
+                    </>
+                  )}
+                  <button className="cta" type="submit">
+                    Salvar viagem
+                  </button>
+                </form>
+              ) : null}
             </article>
 
             <article className="glass-card panel-card">

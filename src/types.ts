@@ -92,6 +92,13 @@ export interface RequestFormState {
   notes: string;
 }
 
+export interface ClientFormState {
+  name: string;
+  document: string;
+  phone: string;
+  address: string;
+}
+
 export interface UserFormState {
   name: string;
   document: string;

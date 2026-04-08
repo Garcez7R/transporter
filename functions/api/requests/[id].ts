@@ -6,6 +6,7 @@ import type { Env } from '../../_shared/types';
 
 type UpdateBody = {
   status?: string;
+  destination?: string;
   driver?: string;
   vehicle?: string;
   notes?: string;
@@ -238,6 +239,7 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
   const hasField = (value: unknown) => value !== undefined;
   const fields = {
     status: hasField(body.status),
+    destination: hasField(body.destination),
     driver: hasField(body.driver),
     vehicle: hasField(body.vehicle),
     notes: hasField(body.notes),
@@ -274,6 +276,7 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
   if (role === 'operador') {
     const allowed: Array<keyof typeof fields> = [
       'status',
+      'destination',
       'notes',
       'companions',
       'boardingPoint',
@@ -293,6 +296,7 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
   if (role === 'gerente') {
     const allowed: Array<keyof typeof fields> = [
       'status',
+      'destination',
       'driver',
       'vehicle',
       'notes',
@@ -317,6 +321,7 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
   };
 
   if (body.status) setField('status', body.status);
+  if (body.destination !== undefined) setField('destination', body.destination);
   if (body.driver !== undefined) setField('driver_id', body.driver ? await resolveDriverId(env, body.driver) : null);
   if (body.vehicle !== undefined) setField('vehicle_id', body.vehicle ? await resolveVehicleId(env, body.vehicle) : null);
   if (body.notes !== undefined) setField('notes', body.notes);
@@ -425,6 +430,7 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
   }
 
   const changedFields: string[] = [];
+  if (body.destination !== undefined) changedFields.push('destino');
   if (body.notes !== undefined) changedFields.push('observações');
   if (body.companions !== undefined) changedFields.push('acompanhantes');
   if (body.boardingPoint !== undefined) changedFields.push('embarque');
