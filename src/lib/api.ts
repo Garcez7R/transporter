@@ -187,6 +187,7 @@ export async function createClient(
     name: string;
     document: string;
     phone?: string;
+    cep?: string;
     address?: string;
   },
   token?: string
@@ -207,6 +208,7 @@ export async function updateClient(
     name?: string;
     document?: string;
     phone?: string;
+    cep?: string;
     address?: string;
   },
   token?: string
