@@ -350,6 +350,46 @@ function App() {
     { label: 'PWA', value: isStandalone ? 'Instalado' : 'Pronto' }
   ];
 
+  function parseDate(value: string) {
+    if (!value) return null;
+    if (value.includes('T')) {
+      const parsed = new Date(value);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+    const datePart = value.split(' ')[0] ?? '';
+    const [day, month, year] = datePart.split('/').map((item) => Number(item));
+    if (!day || !month || !year) return null;
+    const parsed = new Date(year, month - 1, day);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  function isToday(value: string) {
+    const parsed = parseDate(value);
+    if (!parsed) return false;
+    const today = new Date();
+    return (
+      parsed.getFullYear() === today.getFullYear() &&
+      parsed.getMonth() === today.getMonth() &&
+      parsed.getDate() === today.getDate()
+    );
+  }
+
+  const pendingToday = visibleRequests.filter(
+    (request) => isToday(request.departureAt) && !['concluida', 'cancelada'].includes(request.status)
+  ).length;
+  const unreadMessages = visibleRequests.reduce(
+    (total, request) => total + request.messages.filter((message) => !message.internal).length,
+    0
+  );
+  const pendingDispatch = visibleRequests.filter(
+    (request) => !request.driver && ['em_atendimento', 'aguardando_distribuicao'].includes(request.status)
+  ).length;
+  const inRoute = visibleRequests.filter((request) => request.status === 'em_rota').length;
+  const pendingConfirmations = visibleRequests.filter(
+    (request) => !request.clientConfirmedAt && ['agendada', 'em_rota'].includes(request.status)
+  ).length;
+  const pendingPinChange = visibleRequests.filter((request) => request.pinStatus !== 'active').length;
+
   async function handleInstallApp() {
     if (!installPrompt) return;
     installPrompt.prompt();
@@ -760,6 +800,45 @@ function App() {
         ) : null}
 
         {session.role === 'operador' && (
+          <section className="grid two-col action-cards">
+            <article className="glass-card panel-card action-card">
+              <strong>Solicitações pendentes hoje</strong>
+              <span>{pendingToday}</span>
+            </article>
+            <article className="glass-card panel-card action-card">
+              <strong>Mensagens não lidas</strong>
+              <span>{unreadMessages}</span>
+            </article>
+          </section>
+        )}
+
+        {session.role === 'gerente' && (
+          <section className="grid two-col action-cards">
+            <article className="glass-card panel-card action-card">
+              <strong>Distribuições sem motorista</strong>
+              <span>{pendingDispatch}</span>
+            </article>
+            <article className="glass-card panel-card action-card">
+              <strong>Viagens em rota</strong>
+              <span>{inRoute}</span>
+            </article>
+          </section>
+        )}
+
+        {session.role === 'administrador' && (
+          <section className="grid two-col action-cards">
+            <article className="glass-card panel-card action-card">
+              <strong>Confirmações pendentes de paciente</strong>
+              <span>{pendingConfirmations}</span>
+            </article>
+            <article className="glass-card panel-card action-card">
+              <strong>PINs para trocar</strong>
+              <span>{pendingPinChange}</span>
+            </article>
+          </section>
+        )}
+
+        {session.role === 'operador' && (
           <section className="grid two-col" id="solicitacoes">
             <article className="glass-card panel-card">
               <div className="section-head">
@@ -1027,7 +1106,7 @@ function App() {
                     Confirmar agenda recebida
                   </button>
                 ) : null}
-                {session.role !== 'cliente' ? (
+                {session.role !== 'cliente' && session.role !== 'motorista' ? (
                   <button className="cta ghost" type="button" onClick={handleResetClientPin}>
                     Resetar PIN do paciente
                   </button>

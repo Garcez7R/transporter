@@ -758,6 +758,28 @@ h1 {
   gap: 18px;
 }
 
+.action-cards {
+  align-items: stretch;
+}
+
+.action-card {
+  display: grid;
+  gap: 10px;
+  align-content: center;
+  min-height: 120px;
+  padding: 20px;
+}
+
+.action-card strong {
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+}
+
+.action-card span {
+  font-size: 2rem;
+  font-weight: 800;
+}
+
 .request-list,
 .fleet-list,
 .messages-stack,
