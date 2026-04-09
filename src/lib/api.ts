@@ -74,6 +74,7 @@ export async function createRequest(
     phone: string;
     destination: string;
     boardingPoint: string;
+    boardingCep?: string;
     departureAt: string;
     arrivalEta: string;
     notes: string;
@@ -101,6 +102,7 @@ export async function updateRequest(
     notes?: string;
     companions?: string;
     boardingPoint?: string;
+    boardingCep?: string;
     departureAt?: string;
     arrivalEta?: string;
     phoneVisible?: boolean;

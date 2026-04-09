@@ -44,6 +44,7 @@ type RequestPatch = Partial<
     | 'companions'
     | 'arrivalEta'
     | 'boardingPoint'
+    | 'boardingCep'
     | 'departureAt'
     | 'phoneVisible'
     | 'clientConfirmedAt'
@@ -393,7 +394,7 @@ function App() {
     setTripConsultDate(consult.date);
     setTripConsultTime(consult.time);
     const parsedBoarding = parseAddress(activeRequest.boardingPoint ?? '');
-    setManagerCep(formatCep(activeRequest.clientCep ?? ''));
+    setManagerCep(formatCep(activeRequest.boardingCep ?? activeRequest.clientCep ?? ''));
     setManagerStreet(parsedBoarding.street);
     setManagerNumber(parsedBoarding.number);
     setManagerNeighborhood(parsedBoarding.neighborhood);
@@ -514,6 +515,7 @@ function App() {
             neighborhood: requestForm.neighborhood,
             city: requestForm.city
           }),
+          boardingCep: requestForm.cep,
           departureAt,
           arrivalEta,
           companions: companionPayload
@@ -596,7 +598,8 @@ function App() {
         number: managerNumber,
         neighborhood: managerNeighborhood,
         city: managerCity
-      })
+      }),
+      boardingCep: managerCep
     });
   }
 
@@ -944,7 +947,7 @@ function App() {
   }
 
   function buildMapQuery(request: TripRequest) {
-    const parts = [request.boardingPoint, request.clientAddress, request.clientCep].filter(Boolean);
+    const parts = [request.boardingPoint, request.clientAddress, request.boardingCep, request.clientCep].filter(Boolean);
     if (!parts.length) return '';
     return parts.join(', ');
   }
@@ -1594,7 +1597,7 @@ function App() {
                           <strong>{request.protocol}</strong>
                           <div className="admin-cell">
                             <strong>{request.clientName}</strong>
-                            <small>{formatAddressDisplay(request.boardingPoint, request.clientCep)}</small>
+                            <small>{formatAddressDisplay(request.boardingPoint, request.boardingCep ?? request.clientCep)}</small>
                           </div>
                           <span>{formatSchedule(request.departureAt)}</span>
                           <span className={`status status-${request.status}`}>{statusLabels[request.status]}</span>
@@ -1996,7 +1999,7 @@ function App() {
                         <strong>{request.clientName}</strong>
                         <p>{request.destination}</p>
                         <small>
-                          {formatAddressDisplay(request.boardingPoint, request.clientCep)} · {formatSchedule(request.departureAt)}
+                          {formatAddressDisplay(request.boardingPoint, request.boardingCep ?? request.clientCep)} · {formatSchedule(request.departureAt)}
                         </small>
                       </div>
                       <div className="request-meta">
@@ -2027,7 +2030,7 @@ function App() {
                   <p><strong>Telefone:</strong> {activeRequest.phoneVisible ? activeRequest.phone : 'oculto'}</p>
                   <p><strong>Endereço:</strong> {activeRequest.clientAddress || 'não informado'}</p>
                   <p><strong>CEP:</strong> {activeRequest.clientCep || 'não informado'}</p>
-                  <p><strong>Embarque:</strong> {formatAddressDisplay(activeRequest.boardingPoint, activeRequest.clientCep)}</p>
+                  <p><strong>Embarque:</strong> {formatAddressDisplay(activeRequest.boardingPoint, activeRequest.boardingCep ?? activeRequest.clientCep)}</p>
                   <p><strong>Destino:</strong> {activeRequest.destination}</p>
                   <p><strong>Acompanhantes / carga:</strong> {activeRequest.companions}</p>
                   <a
@@ -2060,7 +2063,7 @@ function App() {
                         {request.clientName} · {request.destination}
                       </p>
                       <small>
-                        Embarque: {formatAddressDisplay(request.boardingPoint, request.clientCep)} · Saída: {formatSchedule(request.departureAt)}
+                        Embarque: {formatAddressDisplay(request.boardingPoint, request.boardingCep ?? request.clientCep)} · Saída: {formatSchedule(request.departureAt)}
                       </small>
                     </div>
                     <div className="request-meta">

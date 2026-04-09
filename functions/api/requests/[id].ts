@@ -12,6 +12,7 @@ type UpdateBody = {
   notes?: string;
   companions?: string;
   boardingPoint?: string;
+  boardingCep?: string;
   departureAt?: string;
   arrivalEta?: string;
   phoneVisible?: boolean;
@@ -28,6 +29,7 @@ type RequestDetail = {
   phone: string;
   clientCep?: string;
   clientAddress?: string;
+  boardingCep?: string;
   destination: string;
   boardingPoint: string;
   departureAt: string;
@@ -75,6 +77,7 @@ async function fetchDetail(env: Env, requestId: number) {
         clients.address AS clientAddress,
         trip_requests.destination,
         trip_requests.boarding_point AS boardingPoint,
+        trip_requests.boarding_cep AS boardingCep,
         trip_requests.departure_at AS departureAt,
         trip_requests.arrival_eta AS arrivalEta,
         trip_requests.status,
@@ -138,6 +141,7 @@ async function fetchDetail(env: Env, requestId: number) {
     phone: String(row.phone ?? ''),
     clientCep: row.clientCep ? String(row.clientCep) : '',
     clientAddress: row.clientAddress ? String(row.clientAddress) : '',
+    boardingCep: row.boardingCep ? String(row.boardingCep) : '',
     destination: String(row.destination),
     boardingPoint: String(row.boardingPoint),
     departureAt: String(row.departureAt),
@@ -251,6 +255,7 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
     notes: hasField(body.notes),
     companions: hasField(body.companions),
     boardingPoint: hasField(body.boardingPoint),
+    boardingCep: hasField(body.boardingCep),
     departureAt: hasField(body.departureAt),
     arrivalEta: hasField(body.arrivalEta),
     phoneVisible: hasField(body.phoneVisible),
@@ -286,6 +291,7 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
       'notes',
       'companions',
       'boardingPoint',
+      'boardingCep',
       'departureAt',
       'arrivalEta',
       'message',
@@ -308,6 +314,7 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
       'notes',
       'companions',
       'boardingPoint',
+      'boardingCep',
       'departureAt',
       'arrivalEta',
       'phoneVisible',
@@ -336,6 +343,7 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
   if (body.notes !== undefined) setField('notes', body.notes);
   if (body.companions !== undefined) setField('companions', body.companions);
   if (body.boardingPoint !== undefined) setField('boarding_point', body.boardingPoint);
+  if (body.boardingCep !== undefined) setField('boarding_cep', body.boardingCep.replace(/\D/g, ''));
   if (body.departureAt !== undefined) setField('departure_at', body.departureAt);
   if (body.arrivalEta !== undefined) setField('arrival_eta', body.arrivalEta);
   if (body.phoneVisible !== undefined) setField('phone_visible', body.phoneVisible ? 1 : 0);
@@ -443,6 +451,7 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
   if (body.notes !== undefined) changedFields.push('observações');
   if (body.companions !== undefined) changedFields.push('acompanhantes');
   if (body.boardingPoint !== undefined) changedFields.push('embarque');
+  if (body.boardingCep !== undefined) changedFields.push('CEP do embarque');
   if (body.phoneVisible !== undefined) changedFields.push('telefone visível');
 
   if (changedFields.length) {

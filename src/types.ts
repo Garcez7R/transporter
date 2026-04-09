@@ -51,6 +51,7 @@ export interface TripRequest {
   phone: string;
   clientCep?: string;
   clientAddress?: string;
+  boardingCep?: string;
   destination: string;
   boardingPoint: string;
   departureAt: string;

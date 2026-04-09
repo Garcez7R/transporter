@@ -9,6 +9,7 @@ type CreateRequestBody = {
   phone?: string;
   destination?: string;
   boardingPoint?: string;
+  boardingCep?: string;
   departureAt?: string;
   arrivalEta?: string;
   notes?: string;
@@ -23,6 +24,7 @@ type RequestRow = {
   phone: string;
   clientCep?: string;
   clientAddress?: string;
+  boardingCep?: string;
   destination: string;
   boardingPoint: string;
   departureAt: string;
@@ -54,6 +56,10 @@ type RequestRow = {
 };
 
 function normalizeDocument(value: string) {
+  return value.replace(/\D/g, '');
+}
+
+function normalizeCep(value: string) {
   return value.replace(/\D/g, '');
 }
 
@@ -140,6 +146,7 @@ async function mapRequestRows(env: Env, rows: Array<Record<string, unknown>>) {
       phone: String(row.phone ?? ''),
       clientCep: row.clientCep ? String(row.clientCep) : '',
       clientAddress: row.clientAddress ? String(row.clientAddress) : '',
+      boardingCep: row.boardingCep ? String(row.boardingCep) : '',
       destination: String(row.destination),
       boardingPoint: String(row.boardingPoint),
       departureAt: String(row.departureAt),
@@ -184,6 +191,7 @@ export async function onRequestGet({ request, env }: { request: Request; env: En
       clients.address AS clientAddress,
       trip_requests.destination,
       trip_requests.boarding_point AS boardingPoint,
+      trip_requests.boarding_cep AS boardingCep,
       trip_requests.departure_at AS departureAt,
       trip_requests.arrival_eta AS arrivalEta,
       trip_requests.status,
@@ -261,9 +269,15 @@ export async function onRequestPost({ request, env }: { request: Request; env: E
 
   const clientId = existingClient?.id ?? (
     await env.DB.prepare(
-      'INSERT INTO clients (name, document, phone, address) VALUES (?, ?, ?, ?)'
+      'INSERT INTO clients (name, document, phone, cep, address) VALUES (?, ?, ?, ?, ?)'
     )
-      .bind(body.clientName, clientDocument, body.phone ?? '', body.boardingPoint ?? '')
+      .bind(
+        body.clientName,
+        clientDocument,
+        body.phone ?? '',
+        body.boardingCep ? normalizeCep(body.boardingCep) : '',
+        body.boardingPoint ?? ''
+      )
       .run()
   ).meta.last_row_id!;
 
@@ -301,6 +315,7 @@ export async function onRequestPost({ request, env }: { request: Request; env: E
         client_phone,
         destination,
         boarding_point,
+        boarding_cep,
         departure_at,
         arrival_eta,
         status,
@@ -309,7 +324,7 @@ export async function onRequestPost({ request, env }: { request: Request; env: E
         phone_visible,
         client_pin_status
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'em_atendimento', ?, ?, 1, 'first_access')
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'em_atendimento', ?, ?, 1, 'first_access')
     `
   )
     .bind(
@@ -318,6 +333,7 @@ export async function onRequestPost({ request, env }: { request: Request; env: E
       body.phone ?? '',
       body.destination,
       body.boardingPoint,
+      body.boardingCep ? normalizeCep(body.boardingCep) : '',
       body.departureAt,
       body.arrivalEta ?? '',
       body.notes ?? '',

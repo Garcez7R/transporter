@@ -1,4 +1,5 @@
 import type { Env } from './types';
+import { sendSplunkEvent } from './logging';
 
 type AuditEntry = {
   tripRequestId?: number | null;
@@ -35,6 +36,8 @@ export async function logAudit(env: Env, entry: AuditEntry) {
         entry.actorId ?? null
       )
       .run();
+
+    await sendSplunkEvent(env, entry);
   } catch {
     // ignore audit logging failures to avoid breaking the main flow
   }
