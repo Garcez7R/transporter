@@ -110,6 +110,10 @@ function App() {
     document: '',
     phone: '',
     cep: '',
+    street: '',
+    number: '',
+    neighborhood: '',
+    city: '',
     address: ''
   });
   const [operatorView, setOperatorView] = useState<'novo' | 'recentes'>('novo');
@@ -161,6 +165,45 @@ function App() {
     const match = value.match(/sim:\s*(.+)\s+\((.+)\)/i);
     if (!match?.[1] || !match?.[2]) return { mode: 'sim' as const, name: '', cpf: '' };
     return { mode: 'sim' as const, name: match[1].trim(), cpf: match[2].trim() };
+  }
+
+  function buildAddressFromFields(fields: { street: string; number: string; neighborhood: string; city: string }) {
+    const street = fields.street.trim();
+    const number = fields.number.trim();
+    const neighborhood = fields.neighborhood.trim();
+    const city = fields.city.trim();
+    if (!street || !number || !neighborhood || !city) return '';
+    return `${street}, ${number} - ${neighborhood}, ${city}`;
+  }
+
+  function parseAddress(value: string) {
+    const [streetPart = '', rest = ''] = value.split(',');
+    const [numberPart = '', tail = ''] = rest.split('-');
+    const [neighborhood = '', city = ''] = tail.split(',');
+    return {
+      street: streetPart.trim(),
+      number: numberPart.trim(),
+      neighborhood: neighborhood.trim(),
+      city: city.trim()
+    };
+  }
+
+  async function handleLookupCep(value: string, onSuccess: (data: { street?: string; neighborhood?: string; city?: string }) => void) {
+    const cep = normalizeCep(value);
+    if (cep.length !== 8) return;
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+      if (!response.ok) return;
+      const data = (await response.json()) as { erro?: boolean; logradouro?: string; bairro?: string; localidade?: string };
+      if (data?.erro) return;
+      onSuccess({
+        street: data.logradouro ?? '',
+        neighborhood: data.bairro ?? '',
+        city: data.localidade ?? ''
+      });
+    } catch {
+      return;
+    }
   }
 
   function splitDateTime(value: string) {
@@ -433,12 +476,12 @@ function App() {
     if (!session?.token || session.role !== 'operador') return;
 
     try {
-      if (!requestForm.boardingPoint.trim()) {
-        showBanner('error', 'Informe o endereço completo do embarque.');
+      if (!requestForm.street.trim() || !requestForm.number.trim() || !requestForm.neighborhood.trim() || !requestForm.city.trim()) {
+        showBanner('error', 'Informe rua, número, bairro e cidade do embarque.');
         return;
       }
-      if (normalizeCep(requestForm.boardingPoint).length < 8) {
-        showBanner('error', 'Informe o endereço completo com CEP.');
+      if (normalizeCep(requestForm.cep).length < 8) {
+        showBanner('error', 'Informe o CEP do embarque.');
         return;
       }
       if (!requestDate || !requestTime || !consultDate || !consultTime) {
@@ -451,6 +494,12 @@ function App() {
       const response = await createRequest(
         {
           ...requestForm,
+          boardingPoint: buildAddressFromFields({
+            street: requestForm.street,
+            number: requestForm.number,
+            neighborhood: requestForm.neighborhood,
+            city: requestForm.city
+          }),
           departureAt,
           arrivalEta,
           companions: companionPayload
@@ -562,8 +611,8 @@ function App() {
     if (!session?.token) return;
 
     try {
-      if (!clientForm.cep.trim() || !clientForm.address.trim()) {
-        showBanner('error', 'CEP e endereço completo são obrigatórios.');
+      if (!clientForm.cep.trim() || !clientForm.street.trim() || !clientForm.number.trim() || !clientForm.neighborhood.trim() || !clientForm.city.trim()) {
+        showBanner('error', 'CEP, rua, número, bairro e cidade são obrigatórios.');
         return;
       }
       await createClient(
@@ -572,11 +621,11 @@ function App() {
           document: normalizeDocument(clientForm.document),
           phone: clientForm.phone.trim(),
           cep: clientForm.cep.trim(),
-          address: clientForm.address.trim()
+          address: buildAddressFromFields(clientForm)
         },
         session.token
       );
-      setClientForm({ name: '', document: '', phone: '', cep: '', address: '' });
+      setClientForm({ name: '', document: '', phone: '', cep: '', street: '', number: '', neighborhood: '', city: '', address: '' });
       pushToast('success', 'Paciente cadastrado.');
       await refreshClients(session.token, clientFilter);
     } catch (error) {
@@ -589,8 +638,8 @@ function App() {
     if (!session?.token) return;
 
     try {
-      if (!clientForm.cep.trim() || !clientForm.address.trim()) {
-        showBanner('error', 'CEP e endereço completo são obrigatórios.');
+      if (!clientForm.cep.trim() || !clientForm.street.trim() || !clientForm.number.trim() || !clientForm.neighborhood.trim() || !clientForm.city.trim()) {
+        showBanner('error', 'CEP, rua, número, bairro e cidade são obrigatórios.');
         return;
       }
       await createClient(
@@ -599,7 +648,7 @@ function App() {
           document: normalizeDocument(clientForm.document),
           phone: clientForm.phone.trim(),
           cep: clientForm.cep.trim(),
-          address: clientForm.address.trim()
+          address: buildAddressFromFields(clientForm)
         },
         session.token
       );
@@ -608,7 +657,11 @@ function App() {
         clientName: clientForm.name.trim(),
         document: formatDocument(clientForm.document),
         phone: clientForm.phone.trim(),
-        boardingPoint: clientForm.address.trim()
+        cep: formatCep(clientForm.cep),
+        street: clientForm.street.trim(),
+        number: clientForm.number.trim(),
+        neighborhood: clientForm.neighborhood.trim(),
+        city: clientForm.city.trim()
       }));
       setShowInlinePatient(false);
       setCpfLookupStatus('found');
@@ -627,20 +680,45 @@ function App() {
       const response = await listClients(session.token, document);
       const match = (response.rows ?? []).find((client) => normalizeDocument(client.document) === document);
       if (match) {
+        const parsedAddress = parseAddress(match.address ?? '');
         setRequestForm((current) => ({
           ...current,
           clientName: match.name ?? '',
           document: formatDocument(match.document ?? ''),
           phone: match.phone ?? '',
-          boardingPoint: match.address ?? current.boardingPoint
+          cep: formatCep(match.cep ?? ''),
+          street: parsedAddress.street || current.street,
+          number: parsedAddress.number || current.number,
+          neighborhood: parsedAddress.neighborhood || current.neighborhood,
+          city: parsedAddress.city || current.city
         }));
         setClientForm({
           name: match.name ?? '',
           document: formatDocument(match.document ?? ''),
           phone: match.phone ?? '',
           cep: formatCep(match.cep ?? ''),
+          street: parsedAddress.street,
+          number: parsedAddress.number,
+          neighborhood: parsedAddress.neighborhood,
+          city: parsedAddress.city,
           address: match.address ?? ''
         });
+        if (match.cep) {
+          handleLookupCep(match.cep, (data) => {
+            setRequestForm((current) => ({
+              ...current,
+              street: data.street || current.street,
+              neighborhood: data.neighborhood || current.neighborhood,
+              city: data.city || current.city
+            }));
+            setClientForm((current) => ({
+              ...current,
+              street: data.street || current.street,
+              neighborhood: data.neighborhood || current.neighborhood,
+              city: data.city || current.city
+            }));
+          });
+        }
         setShowInlinePatient(false);
         setCpfLookupStatus('found');
         pushToast('success', 'Paciente encontrado. Dados preenchidos.');
@@ -670,7 +748,7 @@ function App() {
           document: normalizeDocument(clientForm.document),
           phone: clientForm.phone.trim(),
           cep: clientForm.cep.trim(),
-          address: clientForm.address.trim()
+          address: buildAddressFromFields(clientForm)
         },
         session.token
       );
@@ -804,23 +882,13 @@ function App() {
   const internalNavItems = (() => {
     if (!session || isPatientSession) return [];
 
-    const base = [{ id: 'visao', label: 'Visão geral' }];
+    const base: Array<{ id: string; label: string }> = [];
     if (session.role === 'operador') {
-      base.push(
-        { id: 'solicitacoes', label: 'Solicitações' },
-        { id: 'pacientes', label: 'Pacientes' },
-        { id: 'detalhes', label: 'Detalhes' },
-        { id: 'mensagens', label: 'Mensagens' }
-      );
+      base.push({ id: 'solicitacoes', label: 'Solicitações' }, { id: 'detalhes', label: 'Detalhes' });
     } else if (session.role === 'gerente') {
-      base.push(
-        { id: 'distribuicao', label: 'Distribuição' },
-        { id: 'pacientes', label: 'Pacientes' },
-        { id: 'detalhes', label: 'Detalhes' },
-        { id: 'mensagens', label: 'Mensagens' }
-      );
+      base.push({ id: 'distribuicao', label: 'Distribuição' }, { id: 'pacientes', label: 'Pacientes' }, { id: 'detalhes', label: 'Detalhes' });
     } else if (session.role === 'motorista') {
-      base.push({ id: 'agenda', label: 'Agenda' }, { id: 'detalhes', label: 'Detalhes' }, { id: 'mensagens', label: 'Mensagens' });
+      base.push({ id: 'agenda', label: 'Agenda' }, { id: 'detalhes', label: 'Detalhes' });
     } else if (session.role === 'administrador') {
       base.push(
         { id: 'viagens', label: 'Viagens' },
@@ -1230,11 +1298,43 @@ function App() {
                   <input placeholder="Nome do paciente" value={requestForm.clientName} onChange={(event) => setRequestForm({ ...requestForm, clientName: event.target.value })} />
                   <input placeholder="Telefone" value={requestForm.phone} onChange={(event) => setRequestForm({ ...requestForm, phone: event.target.value })} />
                   <input placeholder="Destino" value={requestForm.destination} onChange={(event) => setRequestForm({ ...requestForm, destination: event.target.value })} />
-                  <input
-                    placeholder="Endereço completo (obrigatório)"
-                    value={requestForm.boardingPoint}
-                    onChange={(event) => setRequestForm({ ...requestForm, boardingPoint: event.target.value })}
-                  />
+                  <div className="input-action">
+                    <input
+                      placeholder="CEP"
+                      value={requestForm.cep}
+                      onChange={(event) => setRequestForm({ ...requestForm, cep: formatCep(event.target.value) })}
+                      onBlur={(event) =>
+                        handleLookupCep(event.target.value, (data) =>
+                          setRequestForm((current) => ({
+                            ...current,
+                            street: data.street || current.street,
+                            neighborhood: data.neighborhood || current.neighborhood,
+                            city: data.city || current.city
+                          }))
+                        )
+                      }
+                    />
+                    <button
+                      className="cta ghost"
+                      type="button"
+                      onClick={() =>
+                        handleLookupCep(requestForm.cep, (data) =>
+                          setRequestForm((current) => ({
+                            ...current,
+                            street: data.street || current.street,
+                            neighborhood: data.neighborhood || current.neighborhood,
+                            city: data.city || current.city
+                          }))
+                        )
+                      }
+                    >
+                      Buscar CEP
+                    </button>
+                  </div>
+                  <input placeholder="Rua" value={requestForm.street} onChange={(event) => setRequestForm({ ...requestForm, street: event.target.value })} />
+                  <input placeholder="Número" value={requestForm.number} onChange={(event) => setRequestForm({ ...requestForm, number: event.target.value })} />
+                  <input placeholder="Bairro" value={requestForm.neighborhood} onChange={(event) => setRequestForm({ ...requestForm, neighborhood: event.target.value })} />
+                  <input placeholder="Cidade" value={requestForm.city} onChange={(event) => setRequestForm({ ...requestForm, city: event.target.value })} />
                   <label>
                     <span>Data e hora da viagem</span>
                     <div className="input-group">
@@ -1289,8 +1389,43 @@ function App() {
                       <input placeholder="Nome completo" value={clientForm.name} onChange={(event) => setClientForm({ ...clientForm, name: event.target.value })} />
                       <input placeholder="CPF" value={clientForm.document} onChange={(event) => setClientForm({ ...clientForm, document: formatDocument(event.target.value) })} />
                       <input placeholder="Telefone" value={clientForm.phone} onChange={(event) => setClientForm({ ...clientForm, phone: event.target.value })} />
-                      <input placeholder="CEP" value={clientForm.cep} onChange={(event) => setClientForm({ ...clientForm, cep: formatCep(event.target.value) })} />
-                      <input placeholder="Endereço completo" value={clientForm.address} onChange={(event) => setClientForm({ ...clientForm, address: event.target.value })} />
+                      <div className="input-action">
+                        <input
+                          placeholder="CEP"
+                          value={clientForm.cep}
+                          onChange={(event) => setClientForm({ ...clientForm, cep: formatCep(event.target.value) })}
+                          onBlur={(event) =>
+                            handleLookupCep(event.target.value, (data) =>
+                              setClientForm((current) => ({
+                                ...current,
+                                street: data.street || current.street,
+                                neighborhood: data.neighborhood || current.neighborhood,
+                                city: data.city || current.city
+                              }))
+                            )
+                          }
+                        />
+                        <button
+                          className="cta ghost"
+                          type="button"
+                          onClick={() =>
+                            handleLookupCep(clientForm.cep, (data) =>
+                              setClientForm((current) => ({
+                                ...current,
+                                street: data.street || current.street,
+                                neighborhood: data.neighborhood || current.neighborhood,
+                                city: data.city || current.city
+                              }))
+                            )
+                          }
+                        >
+                          Buscar CEP
+                        </button>
+                      </div>
+                      <input placeholder="Rua" value={clientForm.street} onChange={(event) => setClientForm({ ...clientForm, street: event.target.value })} />
+                      <input placeholder="Número" value={clientForm.number} onChange={(event) => setClientForm({ ...clientForm, number: event.target.value })} />
+                      <input placeholder="Bairro" value={clientForm.neighborhood} onChange={(event) => setClientForm({ ...clientForm, neighborhood: event.target.value })} />
+                      <input placeholder="Cidade" value={clientForm.city} onChange={(event) => setClientForm({ ...clientForm, city: event.target.value })} />
                       <div className="form-actions">
                         <button
                           className="cta ghost"
@@ -1406,12 +1541,17 @@ function App() {
                         className={`admin-row ${activeClientId === client.id ? 'request-selected' : ''}`}
                         key={client.id}
                         onClick={() => {
+                          const parsedAddress = parseAddress(client.address ?? '');
                           setActiveClientId(client.id);
                           setClientForm({
                             name: client.name ?? '',
                             document: formatDocument(client.document ?? ''),
                             phone: client.phone ?? '',
                             cep: formatCep(client.cep ?? ''),
+                            street: parsedAddress.street,
+                            number: parsedAddress.number,
+                            neighborhood: parsedAddress.neighborhood,
+                            city: parsedAddress.city,
                             address: client.address ?? ''
                           });
                         }}
@@ -1446,12 +1586,47 @@ function App() {
                 <input placeholder="Nome completo" value={clientForm.name} onChange={(event) => setClientForm({ ...clientForm, name: event.target.value })} />
                 <input placeholder="CPF" value={clientForm.document} onChange={(event) => setClientForm({ ...clientForm, document: formatDocument(event.target.value) })} />
                 <input placeholder="Telefone" value={clientForm.phone} onChange={(event) => setClientForm({ ...clientForm, phone: event.target.value })} />
-                <input placeholder="CEP" value={clientForm.cep} onChange={(event) => setClientForm({ ...clientForm, cep: formatCep(event.target.value) })} />
-                <input placeholder="Endereço completo" value={clientForm.address} onChange={(event) => setClientForm({ ...clientForm, address: event.target.value })} />
+                <div className="input-action">
+                  <input
+                    placeholder="CEP"
+                    value={clientForm.cep}
+                    onChange={(event) => setClientForm({ ...clientForm, cep: formatCep(event.target.value) })}
+                    onBlur={(event) =>
+                      handleLookupCep(event.target.value, (data) =>
+                        setClientForm((current) => ({
+                          ...current,
+                          street: data.street || current.street,
+                          neighborhood: data.neighborhood || current.neighborhood,
+                          city: data.city || current.city
+                        }))
+                      )
+                    }
+                  />
+                  <button
+                    className="cta ghost"
+                    type="button"
+                    onClick={() =>
+                      handleLookupCep(clientForm.cep, (data) =>
+                        setClientForm((current) => ({
+                          ...current,
+                          street: data.street || current.street,
+                          neighborhood: data.neighborhood || current.neighborhood,
+                          city: data.city || current.city
+                        }))
+                      )
+                    }
+                  >
+                    Buscar CEP
+                  </button>
+                </div>
+                <input placeholder="Rua" value={clientForm.street} onChange={(event) => setClientForm({ ...clientForm, street: event.target.value })} />
+                <input placeholder="Número" value={clientForm.number} onChange={(event) => setClientForm({ ...clientForm, number: event.target.value })} />
+                <input placeholder="Bairro" value={clientForm.neighborhood} onChange={(event) => setClientForm({ ...clientForm, neighborhood: event.target.value })} />
+                <input placeholder="Cidade" value={clientForm.city} onChange={(event) => setClientForm({ ...clientForm, city: event.target.value })} />
                 <div className="form-actions">
                   <button className="cta ghost" type="button" onClick={() => {
                     setActiveClientId(null);
-                    setClientForm({ name: '', document: '', phone: '', cep: '', address: '' });
+                    setClientForm({ name: '', document: '', phone: '', cep: '', street: '', number: '', neighborhood: '', city: '', address: '' });
                   }}>
                     Limpar
                   </button>

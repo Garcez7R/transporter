@@ -87,7 +87,11 @@ export interface RequestFormState {
   document: string;
   phone: string;
   destination: string;
-  boardingPoint: string;
+  cep: string;
+  street: string;
+  number: string;
+  neighborhood: string;
+  city: string;
   departureAt: string;
   arrivalEta: string;
   companions: string;
@@ -99,6 +103,10 @@ export interface ClientFormState {
   document: string;
   phone: string;
   cep: string;
+  street: string;
+  number: string;
+  neighborhood: string;
+  city: string;
   address: string;
 }
 
