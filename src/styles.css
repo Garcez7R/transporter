@@ -570,17 +570,35 @@ h1 {
   margin-bottom: 18px;
 }
 
+.detail-summary div {
+  display: grid;
+  gap: 4px;
+}
+
 .detail-summary span {
   color: var(--text-soft);
   font-size: 0.82rem;
+  display: block;
 }
 
 .detail-summary strong {
   font-size: 1rem;
+  display: block;
 }
 
 .status-pill {
   border-radius: 999px;
+}
+
+.table-actions {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.cta.ghost.danger {
+  border-color: rgba(255, 139, 143, 0.4);
+  color: #ff8b8f;
 }
 
 .section-head h2,
