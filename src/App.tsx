@@ -1359,8 +1359,8 @@ function App() {
 
             <article className="glass-card panel-card">
               <div className="section-head">
-                <p className="eyebrow">Mensagens e auditoria</p>
-                <h2>Histórico e comunicação</h2>
+                <p className="eyebrow">{session.role === 'cliente' ? 'Mensagens' : 'Mensagens e auditoria'}</p>
+                <h2>{session.role === 'cliente' ? 'Comunicação' : 'Histórico e comunicação'}</h2>
               </div>
               <div className="message-compose">
                 <textarea value={messageDraft} onChange={(event) => setMessageDraft(event.target.value)} placeholder="Escreva uma mensagem para a operação, motorista ou paciente" />
@@ -1383,10 +1383,12 @@ function App() {
                 {activeRequest.messages.length ? (
                   activeRequest.messages.map((message) => (
                     <article className={`message-item ${message.internal ? 'internal' : 'external'}`} key={message.id}>
-                      <div className="message-head">
-                        <strong>{message.author}</strong>
-                        <span>{message.at}</span>
-                      </div>
+                      {session.role === 'cliente' ? null : (
+                        <div className="message-head">
+                          <strong>{message.author}</strong>
+                          <span>{message.at}</span>
+                        </div>
+                      )}
                       <p>{message.body}</p>
                     </article>
                   ))
@@ -1399,24 +1401,26 @@ function App() {
                 )}
               </div>
 
-              <div className="audit-stack">
-                {activeRequest.audit.length ? (
-                  activeRequest.audit.map((item) => (
-                    <div className="audit-item" key={item.id}>
-                      <strong>{item.label}</strong>
-                      {item.details ? <small>{item.details}</small> : null}
-                      {item.actor ? <span>{item.actor}</span> : null}
-                      <span>{item.at}</span>
+              {session.role === 'cliente' ? null : (
+                <div className="audit-stack">
+                  {activeRequest.audit.length ? (
+                    activeRequest.audit.map((item) => (
+                      <div className="audit-item" key={item.id}>
+                        <strong>{item.label}</strong>
+                        {item.details ? <small>{item.details}</small> : null}
+                        {item.actor ? <span>{item.actor}</span> : null}
+                        <span>{item.at}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="empty-state compact">
+                      <div className="empty-icon"></div>
+                      <strong>Sem auditoria</strong>
+                      <p>As mudanças relevantes serão registradas aqui.</p>
                     </div>
-                  ))
-                ) : (
-                  <div className="empty-state compact">
-                    <div className="empty-icon"></div>
-                    <strong>Sem auditoria</strong>
-                    <p>As mudanças relevantes serão registradas aqui.</p>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
             </article>
           </section>
         ) : null}

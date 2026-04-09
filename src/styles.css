@@ -1,17 +1,17 @@
 :root {
   color-scheme: light;
-  --bg: #f2f3f2;
-  --bg-2: #e8ecea;
-  --panel: rgba(255, 255, 255, 0.9);
-  --panel-strong: #ffffff;
-  --line: rgba(49, 65, 70, 0.12);
-  --text: #2f3b3f;
-  --muted: #6b7679;
-  --accent: #168553;
-  --accent-2: #26a566;
-  --warning: #c69212;
-  --danger: #b34343;
-  --shadow: 0 16px 36px rgba(49, 65, 70, 0.07);
+  --bg: #0d1117;
+  --bg-2: #0b0d12;
+  --panel: rgba(15, 18, 23, 0.92);
+  --panel-strong: #10141a;
+  --line: rgba(197, 206, 216, 0.14);
+  --text: #edf2f7;
+  --muted: #9aa6b2;
+  --accent: #3fb950;
+  --accent-2: #2ea043;
+  --warning: #d4af37;
+  --danger: #ff5a5f;
+  --shadow: 0 18px 42px rgba(0, 0, 0, 0.4);
   font-family:
     'Segoe UI', 'Trebuchet MS', Verdana, sans-serif;
 }
@@ -38,9 +38,10 @@ body::before {
   inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(120deg, rgba(255, 255, 255, 0.12), transparent 35%),
-    radial-gradient(circle at 20% 20%, rgba(0, 0, 0, 0.02), transparent 22%);
-  opacity: 0.55;
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+  opacity: 0.2;
 }
 
 button,
@@ -88,7 +89,7 @@ a {
   display: grid;
   gap: 24px;
   border-right: 1px solid var(--line);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(242, 244, 243, 0.92));
+  background: linear-gradient(180deg, rgba(18, 22, 29, 0.96), rgba(12, 15, 20, 0.92));
   overflow: hidden;
 }
 
@@ -104,8 +105,8 @@ a {
   display: grid;
   place-items: center;
   border-radius: 18px;
-  background: linear-gradient(145deg, rgba(125, 224, 213, 0.24), rgba(140, 184, 255, 0.22));
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(145deg, rgba(63, 185, 80, 0.4), rgba(212, 175, 55, 0.32));
+  border: 1px solid rgba(255, 255, 255, 0.18);
   box-shadow: var(--shadow);
   font-size: 1.35rem;
   font-weight: 800;
@@ -377,8 +378,8 @@ h1 {
   border: 1px solid var(--line);
   border-radius: 20px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(243, 246, 244, 0.85)),
-    rgba(255, 255, 255, 0.3);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)),
+    rgba(10, 12, 16, 0.7);
 }
 
 .hero-stats strong,
@@ -400,7 +401,7 @@ h1 {
   border-radius: 28px;
   padding: 24px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(245, 247, 246, 0.9)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)),
     var(--panel);
   backdrop-filter: blur(18px);
   box-shadow: var(--shadow);
@@ -504,7 +505,7 @@ h1 {
   padding: 18px;
   border: 1px solid rgba(49, 65, 70, 0.12);
   border-radius: 26px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(244, 246, 245, 0.94) 100%);
+  background: linear-gradient(180deg, rgba(18, 22, 29, 0.98) 0%, rgba(12, 15, 20, 0.94) 100%);
   box-shadow:
     0 24px 48px rgba(49, 65, 70, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.72);
@@ -517,8 +518,8 @@ h1 {
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle at top left, rgba(0, 0, 0, 0.03), transparent 28%),
-    radial-gradient(circle at top right, rgba(0, 0, 0, 0.02), transparent 28%);
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.04), transparent 28%),
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.03), transparent 28%);
 }
 
 .saas-sidebar-panel > * {
