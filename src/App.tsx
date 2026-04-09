@@ -200,7 +200,9 @@ function App() {
     if (!value) return '-';
     const parsed = new Date(value);
     if (!Number.isNaN(parsed.getTime())) {
-      return parsed.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+      const date = parsed.toLocaleDateString('pt-BR');
+      const time = parsed.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false });
+      return `${date} ${time}`;
     }
     return value;
   }
