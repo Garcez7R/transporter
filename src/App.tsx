@@ -6,6 +6,7 @@ import {
   createClient,
   createRequest,
   createUser,
+  deleteClient,
   deleteRequest,
   listClients,
   listRequests,
@@ -116,7 +117,9 @@ function App() {
     city: '',
     address: ''
   });
-  const [operatorView, setOperatorView] = useState<'novo' | 'recentes'>('novo');
+  const [operatorView, setOperatorView] = useState<'novo' | 'recentes' | 'pacientes'>('novo');
+  const [operatorClientFilter, setOperatorClientFilter] = useState('');
+  const [clientModalOpen, setClientModalOpen] = useState(false);
   const [showInlinePatient, setShowInlinePatient] = useState(false);
   const [cpfLookupStatus, setCpfLookupStatus] = useState<'idle' | 'found' | 'missing'>('idle');
   const [tripForm, setTripForm] = useState({
@@ -138,6 +141,11 @@ function App() {
   const [tripTime, setTripTime] = useState('');
   const [tripConsultDate, setTripConsultDate] = useState('');
   const [tripConsultTime, setTripConsultTime] = useState('');
+  const [managerCep, setManagerCep] = useState('');
+  const [managerStreet, setManagerStreet] = useState('');
+  const [managerNumber, setManagerNumber] = useState('');
+  const [managerNeighborhood, setManagerNeighborhood] = useState('');
+  const [managerCity, setManagerCity] = useState('');
   const [userForm, setUserForm] = useState<UserFormState>({
     name: '',
     document: '',
@@ -384,6 +392,12 @@ function App() {
     setTripTime(departure.time);
     setTripConsultDate(consult.date);
     setTripConsultTime(consult.time);
+    const parsedBoarding = parseAddress(activeRequest.boardingPoint ?? '');
+    setManagerCep(formatCep(activeRequest.clientCep ?? ''));
+    setManagerStreet(parsedBoarding.street);
+    setManagerNumber(parsedBoarding.number);
+    setManagerNeighborhood(parsedBoarding.neighborhood);
+    setManagerCity(parsedBoarding.city);
   }, [activeRequest?.id]);
 
   async function refreshRequests(token = session?.token) {
@@ -570,6 +584,22 @@ function App() {
     pushToast('success', 'PIN resetado para 0000.');
   }
 
+  async function applyManagerAddress() {
+    if (!activeRequest) return;
+    if (!managerStreet.trim() || !managerNumber.trim() || !managerNeighborhood.trim() || !managerCity.trim()) {
+      showBanner('error', 'Informe rua, número, bairro e cidade do embarque.');
+      return;
+    }
+    await patchRequest(activeRequest.id, {
+      boardingPoint: buildAddressFromFields({
+        street: managerStreet,
+        number: managerNumber,
+        neighborhood: managerNeighborhood,
+        city: managerCity
+      })
+    });
+  }
+
   async function handleCreateUser(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!session?.token || session.role !== 'administrador') return;
@@ -736,6 +766,23 @@ function App() {
     }
   }
 
+  function openClientModal(client: ClientRow) {
+    const parsedAddress = parseAddress(client.address ?? '');
+    setActiveClientId(client.id);
+    setClientForm({
+      name: client.name ?? '',
+      document: formatDocument(client.document ?? ''),
+      phone: client.phone ?? '',
+      cep: formatCep(client.cep ?? ''),
+      street: parsedAddress.street,
+      number: parsedAddress.number,
+      neighborhood: parsedAddress.neighborhood,
+      city: parsedAddress.city,
+      address: client.address ?? ''
+    });
+    setClientModalOpen(true);
+  }
+
   async function handleUpdateClient(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!session?.token || !activeClientId) return;
@@ -756,6 +803,48 @@ function App() {
       await refreshClients(session.token, clientFilter);
     } catch (error) {
       showBanner('error', error instanceof Error ? error.message : 'Não foi possível atualizar o paciente.');
+    }
+  }
+
+  async function handleModalUpdateClient(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!session?.token || !activeClientId) return;
+    if (!window.confirm('Confirmar atualização do cadastro deste paciente?')) return;
+
+    try {
+      await updateClient(
+        activeClientId,
+        {
+          name: clientForm.name.trim(),
+          document: normalizeDocument(clientForm.document),
+          phone: clientForm.phone.trim(),
+          cep: clientForm.cep.trim(),
+          address: buildAddressFromFields(clientForm)
+        },
+        session.token
+      );
+      pushToast('success', 'Paciente atualizado.');
+      await refreshClients(session.token, operatorClientFilter);
+      setClientModalOpen(false);
+    } catch (error) {
+      showBanner('error', error instanceof Error ? error.message : 'Não foi possível atualizar o paciente.');
+    }
+  }
+
+  async function handleDeleteClient(id: number) {
+    if (!session?.token) return;
+    if (!window.confirm('Deseja excluir este paciente? Essa ação não poderá ser desfeita.')) return;
+    try {
+      await deleteClient(id, session.token);
+      pushToast('success', 'Paciente excluído.');
+      await refreshClients(session.token, operatorClientFilter);
+      if (activeClientId === id) {
+        setActiveClientId(null);
+        setClientForm({ name: '', document: '', phone: '', cep: '', street: '', number: '', neighborhood: '', city: '', address: '' });
+      }
+      setClientModalOpen(false);
+    } catch (error) {
+      showBanner('error', error instanceof Error ? error.message : 'Não foi possível excluir o paciente.');
     }
   }
 
@@ -860,6 +949,17 @@ function App() {
     return parts.join(', ');
   }
 
+  function formatAddressDisplay(address: string, cep?: string | null) {
+    if (!address) return '-';
+    const parsed = parseAddress(address);
+    const hasStructured = parsed.street && parsed.number && parsed.neighborhood && parsed.city;
+    const base = hasStructured
+      ? `${parsed.street}, ${parsed.number} - ${parsed.neighborhood}, ${parsed.city}`
+      : address;
+    const formattedCep = formatCep(cep ?? '');
+    return formattedCep ? `${base} · CEP ${formattedCep}` : base;
+  }
+
   const dashboardTitle = session ? `${roleLabels[session.role]} em operação` : 'Portal de acesso';
   const isFiltered = Boolean(requestFilter.trim());
   const requestEmptyText = isFiltered
@@ -884,7 +984,11 @@ function App() {
 
     const base: Array<{ id: string; label: string }> = [];
     if (session.role === 'operador') {
-      base.push({ id: 'solicitacoes', label: 'Solicitações' }, { id: 'detalhes', label: 'Detalhes' });
+      base.push(
+        { id: 'solicitacoes', label: 'Solicitações' },
+        { id: 'pacientes', label: 'Pacientes' },
+        { id: 'detalhes', label: 'Detalhes' }
+      );
     } else if (session.role === 'gerente') {
       base.push({ id: 'distribuicao', label: 'Distribuição' }, { id: 'pacientes', label: 'Pacientes' }, { id: 'detalhes', label: 'Detalhes' });
     } else if (session.role === 'motorista') {
@@ -1096,7 +1200,16 @@ function App() {
                   key={item.id}
                   href={`#${item.id}`}
                   className={`saas-nav-link ${activeNav === item.id ? 'active' : ''}`}
-                  onClick={() => setActiveNav(item.id)}
+                  onClick={() => {
+                    setActiveNav(item.id);
+                    if (session.role === 'operador') {
+                      if (item.id === 'pacientes') {
+                        setOperatorView('pacientes');
+                      } else if (item.id === 'solicitacoes' && operatorView === 'pacientes') {
+                        setOperatorView('novo');
+                      }
+                    }
+                  }}
                 >
                   <span>{item.label}</span>
                 </a>
@@ -1263,16 +1376,32 @@ function App() {
                   <button
                     className={`cta ghost ${operatorView === 'novo' ? 'active' : ''}`}
                     type="button"
-                    onClick={() => setOperatorView('novo')}
+                    onClick={() => {
+                      setOperatorView('novo');
+                      setActiveNav('solicitacoes');
+                    }}
                   >
                     Nova solicitação
                   </button>
                   <button
                     className={`cta ghost ${operatorView === 'recentes' ? 'active' : ''}`}
                     type="button"
-                    onClick={() => setOperatorView('recentes')}
+                    onClick={() => {
+                      setOperatorView('recentes');
+                      setActiveNav('solicitacoes');
+                    }}
                   >
                     Solicitações recentes
+                  </button>
+                  <button
+                    className={`cta ghost ${operatorView === 'pacientes' ? 'active' : ''}`}
+                    type="button"
+                    onClick={() => {
+                      setOperatorView('pacientes');
+                      setActiveNav('pacientes');
+                    }}
+                  >
+                    Pacientes
                   </button>
                 </div>
               </div>
@@ -1445,7 +1574,7 @@ function App() {
                   </div>
                 ) : null}
               </div>
-            ) : (
+            ) : operatorView === 'recentes' ? (
               <>
                 <div className="filter-row">
                   <input placeholder="Filtrar por paciente, protocolo ou destino" value={requestFilter} onChange={(event) => setRequestFilter(event.target.value)} />
@@ -1461,9 +1590,12 @@ function App() {
                   <div className="admin-table-body operator-scroll">
                     {visibleRequests.length ? (
                       visibleRequests.map((request) => (
-                        <div className="admin-row" key={request.id}>
+                  <div className="admin-row" key={request.id}>
                           <strong>{request.protocol}</strong>
-                          <span>{request.clientName}</span>
+                          <div className="admin-cell">
+                            <strong>{request.clientName}</strong>
+                            <small>{formatAddressDisplay(request.boardingPoint, request.clientCep)}</small>
+                          </div>
                           <span>{formatSchedule(request.departureAt)}</span>
                           <span className={`status status-${request.status}`}>{statusLabels[request.status]}</span>
                           <div className="table-actions">
@@ -1496,6 +1628,54 @@ function App() {
                         <div className="empty-icon"></div>
                         <strong>Solicitações vazias</strong>
                         <p>{requestEmptyText}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="filter-row">
+                  <input
+                    placeholder="Buscar por nome ou CPF"
+                    value={operatorClientFilter}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setOperatorClientFilter(value);
+                      if (!session?.token) return;
+                      if (!value || value.length >= 3) {
+                        refreshClients(session.token, value).catch(() => undefined);
+                      }
+                    }}
+                  />
+                </div>
+                <div className="admin-table">
+                  <div className="admin-row admin-row-head">
+                    <span>Paciente</span>
+                    <span>CPF</span>
+                    <span>Telefone</span>
+                    <span>CEP</span>
+                    <span>Endereço</span>
+                  </div>
+                  <div className="admin-table-body operator-scroll">
+                    {clients.length ? (
+                      clients.map((client) => (
+                        <div className="admin-row" key={client.id} onClick={() => openClientModal(client)}>
+                          <div className="admin-user">
+                            <span className="admin-avatar">{getInitials(client.name ?? '')}</span>
+                            <strong>{client.name}</strong>
+                          </div>
+                          <span>{formatDocument(client.document)}</span>
+                          <span>{client.phone || '-'}</span>
+                          <span>{formatCep(client.cep ?? '') || '-'}</span>
+                          <span>{client.address || '-'}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="empty-state">
+                        <div className="empty-icon"></div>
+                        <strong>Nenhum paciente encontrado</strong>
+                        <p>Use a busca acima para localizar um CPF cadastrado.</p>
                       </div>
                     )}
                   </div>
@@ -1674,6 +1854,67 @@ function App() {
                 </div>
                 <div className="assignment-grid">
                   <label>
+                    <span>CEP do embarque</span>
+                    <div className="input-action">
+                      <input
+                        value={managerCep}
+                        onChange={(event) => setManagerCep(formatCep(event.target.value))}
+                        onBlur={(event) =>
+                          handleLookupCep(event.target.value, (data) => {
+                            setManagerStreet(data.street || managerStreet);
+                            setManagerNeighborhood(data.neighborhood || managerNeighborhood);
+                            setManagerCity(data.city || managerCity);
+                          })
+                        }
+                      />
+                      <button
+                        className="cta ghost"
+                        type="button"
+                        onClick={() =>
+                          handleLookupCep(managerCep, (data) => {
+                            setManagerStreet(data.street || managerStreet);
+                            setManagerNeighborhood(data.neighborhood || managerNeighborhood);
+                            setManagerCity(data.city || managerCity);
+                          })
+                        }
+                      >
+                        Buscar CEP
+                      </button>
+                    </div>
+                  </label>
+                  <label>
+                    <span>Rua</span>
+                    <input
+                      value={managerStreet}
+                      onChange={(event) => setManagerStreet(event.target.value)}
+                      onBlur={applyManagerAddress}
+                    />
+                  </label>
+                  <label>
+                    <span>Número</span>
+                    <input
+                      value={managerNumber}
+                      onChange={(event) => setManagerNumber(event.target.value)}
+                      onBlur={applyManagerAddress}
+                    />
+                  </label>
+                  <label>
+                    <span>Bairro</span>
+                    <input
+                      value={managerNeighborhood}
+                      onChange={(event) => setManagerNeighborhood(event.target.value)}
+                      onBlur={applyManagerAddress}
+                    />
+                  </label>
+                  <label>
+                    <span>Cidade</span>
+                    <input
+                      value={managerCity}
+                      onChange={(event) => setManagerCity(event.target.value)}
+                      onBlur={applyManagerAddress}
+                    />
+                  </label>
+                  <label>
                     <span>Motorista</span>
                     <input value={activeRequest.driver} onChange={(event) => patchRequest(activeRequest.id, { driver: event.target.value })} />
                   </label>
@@ -1755,7 +1996,7 @@ function App() {
                         <strong>{request.clientName}</strong>
                         <p>{request.destination}</p>
                         <small>
-                          {request.boardingPoint} · {formatSchedule(request.departureAt)}
+                          {formatAddressDisplay(request.boardingPoint, request.clientCep)} · {formatSchedule(request.departureAt)}
                         </small>
                       </div>
                       <div className="request-meta">
@@ -1786,7 +2027,7 @@ function App() {
                   <p><strong>Telefone:</strong> {activeRequest.phoneVisible ? activeRequest.phone : 'oculto'}</p>
                   <p><strong>Endereço:</strong> {activeRequest.clientAddress || 'não informado'}</p>
                   <p><strong>CEP:</strong> {activeRequest.clientCep || 'não informado'}</p>
-                  <p><strong>Embarque:</strong> {activeRequest.boardingPoint}</p>
+                  <p><strong>Embarque:</strong> {formatAddressDisplay(activeRequest.boardingPoint, activeRequest.clientCep)}</p>
                   <p><strong>Destino:</strong> {activeRequest.destination}</p>
                   <p><strong>Acompanhantes / carga:</strong> {activeRequest.companions}</p>
                   <a
@@ -1819,7 +2060,7 @@ function App() {
                         {request.clientName} · {request.destination}
                       </p>
                       <small>
-                        Embarque: {request.boardingPoint} · Saída: {formatSchedule(request.departureAt)}
+                        Embarque: {formatAddressDisplay(request.boardingPoint, request.clientCep)} · Saída: {formatSchedule(request.departureAt)}
                       </small>
                     </div>
                     <div className="request-meta">
@@ -2156,6 +2397,71 @@ function App() {
               </div>
             )}
           </section>
+        ) : null}
+        {clientModalOpen && activeClientId ? (
+          <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={() => setClientModalOpen(false)}>
+            <div className="glass-card modal-card" onClick={(event) => event.stopPropagation()}>
+              <div className="modal-header">
+                <div>
+                  <p className="eyebrow">Paciente</p>
+                  <h2>Dados cadastrais</h2>
+                </div>
+                <button className="cta ghost" type="button" onClick={() => setClientModalOpen(false)}>
+                  Fechar
+                </button>
+              </div>
+              <form className="request-form" onSubmit={handleModalUpdateClient}>
+                <input placeholder="Nome completo" value={clientForm.name} onChange={(event) => setClientForm({ ...clientForm, name: event.target.value })} />
+                <input placeholder="CPF" value={clientForm.document} onChange={(event) => setClientForm({ ...clientForm, document: formatDocument(event.target.value) })} />
+                <input placeholder="Telefone" value={clientForm.phone} onChange={(event) => setClientForm({ ...clientForm, phone: event.target.value })} />
+                <div className="input-action">
+                  <input
+                    placeholder="CEP"
+                    value={clientForm.cep}
+                    onChange={(event) => setClientForm({ ...clientForm, cep: formatCep(event.target.value) })}
+                    onBlur={(event) =>
+                      handleLookupCep(event.target.value, (data) =>
+                        setClientForm((current) => ({
+                          ...current,
+                          street: data.street || current.street,
+                          neighborhood: data.neighborhood || current.neighborhood,
+                          city: data.city || current.city
+                        }))
+                      )
+                    }
+                  />
+                  <button
+                    className="cta ghost"
+                    type="button"
+                    onClick={() =>
+                      handleLookupCep(clientForm.cep, (data) =>
+                        setClientForm((current) => ({
+                          ...current,
+                          street: data.street || current.street,
+                          neighborhood: data.neighborhood || current.neighborhood,
+                          city: data.city || current.city
+                        }))
+                      )
+                    }
+                  >
+                    Buscar CEP
+                  </button>
+                </div>
+                <input placeholder="Rua" value={clientForm.street} onChange={(event) => setClientForm({ ...clientForm, street: event.target.value })} />
+                <input placeholder="Número" value={clientForm.number} onChange={(event) => setClientForm({ ...clientForm, number: event.target.value })} />
+                <input placeholder="Bairro" value={clientForm.neighborhood} onChange={(event) => setClientForm({ ...clientForm, neighborhood: event.target.value })} />
+                <input placeholder="Cidade" value={clientForm.city} onChange={(event) => setClientForm({ ...clientForm, city: event.target.value })} />
+                <div className="form-actions">
+                  <button className="cta ghost danger" type="button" onClick={() => handleDeleteClient(activeClientId)}>
+                    Excluir
+                  </button>
+                  <button className="cta" type="submit">
+                    Salvar alterações
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         ) : null}
         {toasts.length ? (
           <div className="toast-stack">

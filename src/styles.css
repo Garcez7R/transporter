@@ -1199,6 +1199,43 @@ h1 {
   gap: 12px;
 }
 
+.admin-cell {
+  display: grid;
+  gap: 4px;
+}
+
+.admin-cell small {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 10, 14, 0.68);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  z-index: 999;
+}
+
+.modal-card {
+  width: min(680px, 92vw);
+  display: grid;
+  gap: 16px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modal-header h2 {
+  margin: 0;
+}
+
 .admin-user strong {
   font-size: 0.95rem;
 }

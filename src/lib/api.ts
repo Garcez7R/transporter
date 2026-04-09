@@ -232,3 +232,13 @@ export async function updateClient(
     token
   );
 }
+
+export async function deleteClient(id: number | string, token?: string) {
+  return request<ApiResponse<{ ok: boolean }>>(
+    `/api/clients/${id}`,
+    {
+      method: 'DELETE'
+    },
+    token
+  );
+}

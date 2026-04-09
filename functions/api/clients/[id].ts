@@ -90,3 +90,43 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
 
   return json({ ok: true });
 }
+
+export async function onRequestDelete({ request, env, params }: { request: Request; env: Env; params: { id: string } }) {
+  const session = await getSession(request, env);
+  const clientId = Number(params.id);
+
+  if (!env.DB) return json({ ok: true });
+  if (!canManage(session)) {
+    return json({ ok: false, error: 'Sem permissão.' }, { status: 403 });
+  }
+  if (!clientId) {
+    return json({ ok: false, error: 'ID inválido.' }, { status: 400 });
+  }
+
+  const current = await env.DB.prepare('SELECT id, document, name FROM clients WHERE id = ? LIMIT 1')
+    .bind(clientId)
+    .first<{ id: number; document: string; name: string }>();
+
+  if (!current) {
+    return json({ ok: false, error: 'Paciente não encontrado.' }, { status: 404 });
+  }
+
+  await env.DB.prepare('DELETE FROM clients WHERE id = ?')
+    .bind(clientId)
+    .run();
+
+  await env.DB.prepare('DELETE FROM users WHERE role = ? AND document = ?')
+    .bind('cliente', normalizeDocument(current.document))
+    .run();
+
+  await logAudit(env, {
+    entityType: 'client',
+    action: 'patient.deleted',
+    details: `Paciente ${current.name} removido.`,
+    actorRole: session?.role ?? null,
+    actorName: session?.name ?? null,
+    actorId: session?.user_id ?? null
+  });
+
+  return json({ ok: true });
+}
