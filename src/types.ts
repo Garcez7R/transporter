@@ -25,6 +25,17 @@ export interface SessionUser {
   token: string;
 }
 
+export interface BannerState {
+  type: 'success' | 'error';
+  message: string;
+}
+
+export interface ToastState {
+  id: string;
+  type: 'success' | 'error';
+  message: string;
+}
+
 export interface MessageItem {
   id: string;
   author: string;
@@ -110,6 +121,47 @@ export interface ClientFormState {
   city: string;
   address: string;
 }
+
+export interface ClientRow {
+  id: number;
+  name: string;
+  document: string;
+  phone?: string;
+  cep?: string;
+  address?: string;
+  createdAt?: string;
+}
+
+export interface UserRow {
+  id: number;
+  role: AccessRole;
+  name: string;
+  document: string;
+  pinMustChange: boolean;
+  createdAt?: string;
+  lastLoginAt?: string | null;
+}
+
+export type RequestPatch = Partial<
+  Pick<
+    TripRequest,
+    | 'status'
+    | 'destination'
+    | 'driver'
+    | 'vehicle'
+    | 'notes'
+    | 'companions'
+    | 'arrivalEta'
+    | 'boardingPoint'
+    | 'boardingCep'
+    | 'departureAt'
+    | 'phoneVisible'
+    | 'clientConfirmedAt'
+    | 'pinStatus'
+  >
+> & {
+  message?: string;
+};
 
 export interface UserFormState {
   name: string;
