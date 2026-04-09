@@ -989,8 +989,7 @@ function App() {
     if (session.role === 'operador') {
       base.push(
         { id: 'solicitacoes', label: 'Solicitações' },
-        { id: 'pacientes', label: 'Pacientes' },
-        { id: 'detalhes', label: 'Detalhes' }
+        { id: 'pacientes', label: 'Pacientes' }
       );
     } else if (session.role === 'gerente') {
       base.push({ id: 'distribuicao', label: 'Distribuição' }, { id: 'pacientes', label: 'Pacientes' }, { id: 'detalhes', label: 'Detalhes' });
@@ -1204,12 +1203,15 @@ function App() {
                   href={`#${item.id}`}
                   className={`saas-nav-link ${activeNav === item.id ? 'active' : ''}`}
                   onClick={() => {
-                    setActiveNav(item.id);
-                    if (session.role === 'operador') {
-                      if (item.id === 'pacientes') {
-                        setOperatorView('pacientes');
-                      } else if (item.id === 'solicitacoes' && operatorView === 'pacientes') {
-                        setOperatorView('novo');
+                    if (session.role === 'operador' && item.id === 'pacientes') {
+                      setActiveNav('solicitacoes');
+                      setOperatorView('pacientes');
+                    } else {
+                      setActiveNav(item.id);
+                      if (session.role === 'operador') {
+                        if (item.id === 'solicitacoes' && operatorView === 'pacientes') {
+                          setOperatorView('novo');
+                        }
                       }
                     }
                   }}
@@ -1401,7 +1403,7 @@ function App() {
                     type="button"
                     onClick={() => {
                       setOperatorView('pacientes');
-                      setActiveNav('pacientes');
+                      setActiveNav('solicitacoes');
                     }}
                   >
                     Pacientes
@@ -2091,33 +2093,20 @@ function App() {
                 <p className="eyebrow">Detalhe da viagem</p>
                 <h2>Central da solicitação</h2>
               </div>
-              {session.role === 'operador' ? (
-                <div className="detail-summary">
-                  <div>
-                    <span>Protocolo</span>
-                    <strong>{activeRequest.protocol}</strong>
-                  </div>
-                  <div>
-                    <span>Paciente</span>
-                    <strong>{activeRequest.clientName}</strong>
-                  </div>
-                  <div>
-                    <span>Status</span>
-                    <strong className={`status status-${activeRequest.status}`}>{statusLabels[activeRequest.status]}</strong>
-                  </div>
-                </div>
-              ) : (
-                <div className="detail-stack">
-                  <p><strong>Protocolo:</strong> {activeRequest.protocol}</p>
-                  <p><strong>Paciente:</strong> {activeRequest.clientName}</p>
-                  <p><strong>Destino:</strong> {activeRequest.destination}</p>
-                  <p><strong>Motorista:</strong> {activeRequest.driver || 'não atribuído'}</p>
-                  <p><strong>Veículo:</strong> {activeRequest.vehicle || 'não atribuído'}</p>
-                  <p><strong>PIN do paciente:</strong> {activeRequest.pinStatus}</p>
-                  <p><strong>Confirmação:</strong> {activeRequest.clientConfirmedAt ?? 'pendente'}</p>
-                  <p><strong>Observações:</strong> {activeRequest.notes}</p>
-                </div>
-              )}
+              <div className="detail-stack">
+                <p><strong>Protocolo:</strong> {activeRequest.protocol}</p>
+                <p><strong>Paciente:</strong> {activeRequest.clientName}</p>
+                <p><strong>Destino:</strong> {activeRequest.destination}</p>
+                {session.role !== 'operador' ? (
+                  <>
+                    <p><strong>Motorista:</strong> {activeRequest.driver || 'não atribuído'}</p>
+                    <p><strong>Veículo:</strong> {activeRequest.vehicle || 'não atribuído'}</p>
+                    <p><strong>PIN do paciente:</strong> {activeRequest.pinStatus}</p>
+                    <p><strong>Confirmação:</strong> {activeRequest.clientConfirmedAt ?? 'pendente'}</p>
+                  </>
+                ) : null}
+                <p><strong>Observações:</strong> {activeRequest.notes}</p>
+              </div>
 
               {canEditTrip ? (
                 <form className="request-form" onSubmit={handleSaveTrip}>
