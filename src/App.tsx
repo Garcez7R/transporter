@@ -111,7 +111,6 @@ function App() {
   const [operatorView, setOperatorView] = useState<'novo' | 'recentes'>('novo');
   const [showInlinePatient, setShowInlinePatient] = useState(false);
   const [cpfLookupStatus, setCpfLookupStatus] = useState<'idle' | 'found' | 'missing'>('idle');
-  const [showEditModal, setShowEditModal] = useState(false);
   const [tripForm, setTripForm] = useState({
     destination: '',
     boardingPoint: '',
@@ -1243,12 +1242,11 @@ function App() {
                               type="button"
                               onClick={() => {
                                 setActiveRequestId(request.id);
-                                setActiveNav('detalhes');
-                                setShowEditModal(true);
-                              }}
-                            >
-                              Editar
-                            </button>
+                              setActiveNav('detalhes');
+                            }}
+                          >
+                            Editar
+                          </button>
                             <button
                               className="cta ghost danger"
                               type="button"
@@ -1675,9 +1673,36 @@ function App() {
                       </label>
                     </>
                   )}
-                  <button className="cta" type="submit">
-                    Salvar viagem
-                  </button>
+                  <div className="form-actions">
+                    <button
+                      className="cta ghost"
+                      type="button"
+                      onClick={() => {
+                        if (!activeRequest) return;
+                        setTripForm({
+                          destination: activeRequest.destination,
+                          boardingPoint: activeRequest.boardingPoint,
+                          departureAt: activeRequest.departureAt,
+                          arrivalEta: activeRequest.arrivalEta,
+                          notes: activeRequest.notes,
+                          companions: activeRequest.companions,
+                          status: activeRequest.status,
+                          driver: activeRequest.driver,
+                          vehicle: activeRequest.vehicle,
+                          phoneVisible: Boolean(activeRequest.phoneVisible)
+                        });
+                        const parsed = parseCompanion(activeRequest.companions ?? '');
+                        setTripCompanion(parsed.mode);
+                        setTripCompanionName(parsed.name);
+                        setTripCompanionCpf(parsed.cpf);
+                      }}
+                    >
+                      Cancelar
+                    </button>
+                    <button className="cta" type="submit">
+                      Salvar alterações
+                    </button>
+                  </div>
                 </form>
               ) : null}
             </article>
@@ -1757,95 +1782,7 @@ function App() {
           </section>
         ) : null}
 
-        {showEditModal && activeRequest ? (
-          <div className="modal-backdrop" role="dialog" aria-modal="true">
-            <div className="modal-card">
-              <div className="section-head">
-                <div className="section-toolbar">
-                  <h2>Editar solicitação</h2>
-                  <button className="cta ghost" type="button" onClick={() => setShowEditModal(false)}>
-                    Fechar
-                  </button>
-                </div>
-              </div>
-              <form className="request-form" onSubmit={async (event) => {
-                event.preventDefault();
-                await handleSaveTrip(event);
-                setShowEditModal(false);
-              }}>
-                <input
-                  placeholder="Destino"
-                  value={tripForm.destination}
-                  onChange={(event) => setTripForm({ ...tripForm, destination: event.target.value })}
-                />
-                <input
-                  placeholder="Endereço completo"
-                  value={tripForm.boardingPoint}
-                  onChange={(event) => setTripForm({ ...tripForm, boardingPoint: event.target.value })}
-                />
-                <input
-                  placeholder="Saída prevista (HH:MM)"
-                  value={tripForm.departureAt}
-                  onChange={(event) => setTripForm({ ...tripForm, departureAt: formatTime(event.target.value) })}
-                />
-                <input
-                  placeholder="Horário da consulta (HH:MM)"
-                  value={tripForm.arrivalEta}
-                  onChange={(event) => setTripForm({ ...tripForm, arrivalEta: formatTime(event.target.value) })}
-                />
-                <label>
-                  <span>Acompanhante</span>
-                  <select value={tripCompanion} onChange={(event) => setTripCompanion(event.target.value as 'nao' | 'sim')}>
-                    <option value="nao">não</option>
-                    <option value="sim">sim</option>
-                  </select>
-                </label>
-                {tripCompanion === 'sim' ? (
-                  <>
-                    <input
-                      placeholder="Nome do acompanhante"
-                      value={tripCompanionName}
-                      onChange={(event) => setTripCompanionName(event.target.value)}
-                    />
-                    <input
-                      placeholder="CPF do acompanhante"
-                      value={tripCompanionCpf}
-                      onChange={(event) => setTripCompanionCpf(formatDocument(event.target.value))}
-                    />
-                  </>
-                ) : null}
-                <textarea
-                  placeholder="Observações"
-                  value={tripForm.notes}
-                  onChange={(event) => setTripForm({ ...tripForm, notes: event.target.value })}
-                />
-                <label>
-                  <span>Status</span>
-                  <select
-                    value={tripForm.status}
-                    onChange={(event) => setTripForm({ ...tripForm, status: event.target.value as RequestStatus })}
-                  >
-                    <option value="rascunho">Rascunho</option>
-                    <option value="em_atendimento">Em atendimento</option>
-                    <option value="aguardando_distribuicao">Aguardando distribuição</option>
-                    <option value="agendada">Agendada</option>
-                    <option value="em_rota">Em rota</option>
-                    <option value="concluida">Concluída</option>
-                    <option value="cancelada">Cancelada</option>
-                  </select>
-                </label>
-                <div className="form-actions">
-                  <button className="cta ghost" type="button" onClick={() => setShowEditModal(false)}>
-                    Cancelar
-                  </button>
-                  <button className="cta" type="submit">
-                    Salvar alterações
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        ) : null}
+
 
         {canViewUsers ? (
           <section className="glass-card" id="usuarios">
