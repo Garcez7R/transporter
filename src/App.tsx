@@ -152,7 +152,7 @@ function App() {
     if (!value) return { mode: 'nao' as const, name: '', cpf: '' };
     if (!value.toLowerCase().startsWith('sim:')) return { mode: 'nao' as const, name: '', cpf: '' };
     const match = value.match(/sim:\s*(.+)\s+\((.+)\)/i);
-    if (!match) return { mode: 'sim' as const, name: '', cpf: '' };
+    if (!match?.[1] || !match?.[2]) return { mode: 'sim' as const, name: '', cpf: '' };
     return { mode: 'sim' as const, name: match[1].trim(), cpf: match[2].trim() };
   }
 
