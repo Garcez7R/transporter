@@ -95,6 +95,10 @@ function App() {
   const [requestCompanion, setRequestCompanion] = useState<'nao' | 'sim'>('nao');
   const [requestCompanionName, setRequestCompanionName] = useState('');
   const [requestCompanionCpf, setRequestCompanionCpf] = useState('');
+  const [requestDate, setRequestDate] = useState('');
+  const [requestTime, setRequestTime] = useState('');
+  const [consultDate, setConsultDate] = useState('');
+  const [consultTime, setConsultTime] = useState('');
   const [messageDraft, setMessageDraft] = useState('');
   const [users, setUsers] = useState<UserRow[]>([]);
   const [userRoleFilter, setUserRoleFilter] = useState<AccessRole | 'todos'>('todos');
@@ -126,6 +130,10 @@ function App() {
   const [tripCompanion, setTripCompanion] = useState<'nao' | 'sim'>('nao');
   const [tripCompanionName, setTripCompanionName] = useState('');
   const [tripCompanionCpf, setTripCompanionCpf] = useState('');
+  const [tripDate, setTripDate] = useState('');
+  const [tripTime, setTripTime] = useState('');
+  const [tripConsultDate, setTripConsultDate] = useState('');
+  const [tripConsultTime, setTripConsultTime] = useState('');
   const [userForm, setUserForm] = useState<UserFormState>({
     name: '',
     document: '',
@@ -153,6 +161,48 @@ function App() {
     const match = value.match(/sim:\s*(.+)\s+\((.+)\)/i);
     if (!match?.[1] || !match?.[2]) return { mode: 'sim' as const, name: '', cpf: '' };
     return { mode: 'sim' as const, name: match[1].trim(), cpf: match[2].trim() };
+  }
+
+  function splitDateTime(value: string) {
+    if (!value) return { date: '', time: '' };
+    if (value.includes('T')) {
+      const parsed = new Date(value);
+      if (!Number.isNaN(parsed.getTime())) {
+        return {
+          date: parsed.toISOString().slice(0, 10),
+          time: parsed.toTimeString().slice(0, 5)
+        };
+      }
+    }
+    const [datePart = '', timePart = ''] = value.split(' ');
+    if (datePart.includes('/')) {
+      const [day, month, year] = datePart.split('/');
+      if (day && month && year) {
+        return { date: `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`, time: timePart.slice(0, 5) };
+      }
+    }
+    if (datePart.includes('-')) {
+      return { date: datePart, time: timePart.slice(0, 5) };
+    }
+    if (timePart) return { date: '', time: timePart.slice(0, 5) };
+    if (datePart.includes(':')) return { date: '', time: datePart.slice(0, 5) };
+    return { date: '', time: '' };
+  }
+
+  function buildDateTime(date: string, time: string) {
+    if (!date && !time) return '';
+    if (!date) return time;
+    if (!time) return date;
+    return `${date} ${time}`;
+  }
+
+  function formatSchedule(value: string) {
+    if (!value) return '-';
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+    }
+    return value;
   }
 
   useEffect(() => {
@@ -283,6 +333,12 @@ function App() {
     setTripCompanion(parsed.mode);
     setTripCompanionName(parsed.name);
     setTripCompanionCpf(parsed.cpf);
+    const departure = splitDateTime(activeRequest.departureAt);
+    const consult = splitDateTime(activeRequest.arrivalEta);
+    setTripDate(departure.date);
+    setTripTime(departure.time);
+    setTripConsultDate(consult.date);
+    setTripConsultTime(consult.time);
   }, [activeRequest?.id]);
 
   async function refreshRequests(token = session?.token) {
@@ -379,10 +435,18 @@ function App() {
         showBanner('error', 'Informe o endereço completo do embarque.');
         return;
       }
+      if (!requestDate || !requestTime || !consultDate || !consultTime) {
+        showBanner('error', 'Informe data e hora da viagem e da consulta.');
+        return;
+      }
       const companionPayload = buildCompanionPayload(requestCompanion, requestCompanionName, requestCompanionCpf);
+      const departureAt = buildDateTime(requestDate, requestTime);
+      const arrivalEta = buildDateTime(consultDate, consultTime);
       const response = await createRequest(
         {
           ...requestForm,
+          departureAt,
+          arrivalEta,
           companions: companionPayload
         },
         session.token
@@ -392,6 +456,10 @@ function App() {
       setRequestCompanion('nao');
       setRequestCompanionName('');
       setRequestCompanionCpf('');
+      setRequestDate('');
+      setRequestTime('');
+      setConsultDate('');
+      setConsultTime('');
       pushToast('success', 'Solicitação criada com sucesso.');
       await refreshRequests(session.token);
       if (createdId) setActiveRequestId(createdId);
@@ -612,11 +680,13 @@ function App() {
     if (!activeRequest || !session?.token) return;
 
     const companionPayload = buildCompanionPayload(tripCompanion, tripCompanionName, tripCompanionCpf);
+    const departureAt = buildDateTime(tripDate, tripTime);
+    const arrivalEta = buildDateTime(tripConsultDate, tripConsultTime);
     await patchRequest(activeRequest.id, {
       destination: tripForm.destination,
       boardingPoint: tripForm.boardingPoint,
-      departureAt: tripForm.departureAt,
-      arrivalEta: tripForm.arrivalEta,
+      departureAt,
+      arrivalEta,
       notes: tripForm.notes,
       companions: companionPayload,
       status: tripForm.status,
@@ -1144,16 +1214,14 @@ function App() {
                     value={requestForm.boardingPoint}
                     onChange={(event) => setRequestForm({ ...requestForm, boardingPoint: event.target.value })}
                   />
-                  <input
-                    placeholder="Saída prevista (HH:MM)"
-                    value={requestForm.departureAt}
-                    onChange={(event) => setRequestForm({ ...requestForm, departureAt: formatTime(event.target.value) })}
-                  />
-                  <input
-                    placeholder="Horário da consulta (HH:MM)"
-                    value={requestForm.arrivalEta}
-                    onChange={(event) => setRequestForm({ ...requestForm, arrivalEta: formatTime(event.target.value) })}
-                  />
+                  <div className="input-group">
+                    <input type="date" value={requestDate} onChange={(event) => setRequestDate(event.target.value)} />
+                    <input type="time" value={requestTime} onChange={(event) => setRequestTime(formatTime(event.target.value))} />
+                  </div>
+                  <div className="input-group">
+                    <input type="date" value={consultDate} onChange={(event) => setConsultDate(event.target.value)} />
+                    <input type="time" value={consultTime} onChange={(event) => setConsultTime(formatTime(event.target.value))} />
+                  </div>
                   <label>
                     <span>Acompanhante</span>
                     <select
@@ -1234,7 +1302,7 @@ function App() {
                         <div className="admin-row" key={request.id}>
                           <strong>{request.protocol}</strong>
                           <span>{request.clientName}</span>
-                          <span>{request.departureAt}</span>
+                          <span>{formatSchedule(request.departureAt)}</span>
                           <span className={`status status-${request.status}`}>{statusLabels[request.status]}</span>
                           <div className="table-actions">
                             <button
@@ -1413,11 +1481,33 @@ function App() {
                   </label>
                   <label>
                     <span>Saída</span>
-                    <input value={activeRequest.departureAt} onChange={(event) => patchRequest(activeRequest.id, { departureAt: formatTime(event.target.value) })} />
+                    <div className="input-group">
+                      <input
+                        type="date"
+                        value={splitDateTime(activeRequest.departureAt).date}
+                        onChange={(event) => patchRequest(activeRequest.id, { departureAt: buildDateTime(event.target.value, splitDateTime(activeRequest.departureAt).time) })}
+                      />
+                      <input
+                        type="time"
+                        value={splitDateTime(activeRequest.departureAt).time}
+                        onChange={(event) => patchRequest(activeRequest.id, { departureAt: buildDateTime(splitDateTime(activeRequest.departureAt).date, formatTime(event.target.value)) })}
+                      />
+                    </div>
                   </label>
                   <label>
                     <span>Horário da consulta</span>
-                    <input value={activeRequest.arrivalEta} onChange={(event) => patchRequest(activeRequest.id, { arrivalEta: formatTime(event.target.value) })} />
+                    <div className="input-group">
+                      <input
+                        type="date"
+                        value={splitDateTime(activeRequest.arrivalEta).date}
+                        onChange={(event) => patchRequest(activeRequest.id, { arrivalEta: buildDateTime(event.target.value, splitDateTime(activeRequest.arrivalEta).time) })}
+                      />
+                      <input
+                        type="time"
+                        value={splitDateTime(activeRequest.arrivalEta).time}
+                        onChange={(event) => patchRequest(activeRequest.id, { arrivalEta: buildDateTime(splitDateTime(activeRequest.arrivalEta).date, formatTime(event.target.value)) })}
+                      />
+                    </div>
                   </label>
                   <label>
                     <span>Status</span>
@@ -1595,16 +1685,14 @@ function App() {
                     value={tripForm.boardingPoint}
                     onChange={(event) => setTripForm({ ...tripForm, boardingPoint: event.target.value })}
                   />
-                  <input
-                    placeholder="Saída prevista (HH:MM)"
-                    value={tripForm.departureAt}
-                    onChange={(event) => setTripForm({ ...tripForm, departureAt: formatTime(event.target.value) })}
-                  />
-                  <input
-                    placeholder="Horário da consulta (HH:MM)"
-                    value={tripForm.arrivalEta}
-                    onChange={(event) => setTripForm({ ...tripForm, arrivalEta: formatTime(event.target.value) })}
-                  />
+                  <div className="input-group">
+                    <input type="date" value={tripDate} onChange={(event) => setTripDate(event.target.value)} />
+                    <input type="time" value={tripTime} onChange={(event) => setTripTime(formatTime(event.target.value))} />
+                  </div>
+                  <div className="input-group">
+                    <input type="date" value={tripConsultDate} onChange={(event) => setTripConsultDate(event.target.value)} />
+                    <input type="time" value={tripConsultTime} onChange={(event) => setTripConsultTime(formatTime(event.target.value))} />
+                  </div>
                   <label>
                     <span>Acompanhante</span>
                     <select

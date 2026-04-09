@@ -563,6 +563,12 @@ h1 {
   align-items: end;
 }
 
+.input-group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 140px);
+  gap: 10px;
+}
+
 .detail-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
