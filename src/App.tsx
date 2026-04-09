@@ -94,6 +94,9 @@ function App() {
     cep: '',
     address: ''
   });
+  const [operatorView, setOperatorView] = useState<'novo' | 'recentes'>('novo');
+  const [showInlinePatient, setShowInlinePatient] = useState(false);
+  const [cpfLookupStatus, setCpfLookupStatus] = useState<'idle' | 'found' | 'missing'>('idle');
   const [tripForm, setTripForm] = useState({
     destination: '',
     boardingPoint: '',
@@ -431,6 +434,76 @@ function App() {
     }
   }
 
+  async function handleInlinePatientSave(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!session?.token) return;
+
+    try {
+      await createClient(
+        {
+          name: clientForm.name.trim(),
+          document: normalizeDocument(clientForm.document),
+          phone: clientForm.phone.trim(),
+          cep: clientForm.cep.trim(),
+          address: clientForm.address.trim()
+        },
+        session.token
+      );
+      setRequestForm((current) => ({
+        ...current,
+        clientName: clientForm.name.trim(),
+        document: formatDocument(clientForm.document),
+        phone: clientForm.phone.trim(),
+        boardingPoint: clientForm.address.trim()
+      }));
+      setShowInlinePatient(false);
+      setCpfLookupStatus('found');
+      pushToast('success', 'Paciente cadastrado e preenchido na solicitação.');
+    } catch (error) {
+      showBanner('error', error instanceof Error ? error.message : 'Não foi possível cadastrar o paciente.');
+    }
+  }
+
+  async function handleLookupPatient() {
+    if (!session?.token) return;
+    const document = normalizeDocument(requestForm.document);
+    if (!document) return;
+
+    try {
+      const response = await listClients(session.token, document);
+      const match = (response.rows ?? []).find((client) => normalizeDocument(client.document) === document);
+      if (match) {
+        setRequestForm((current) => ({
+          ...current,
+          clientName: match.name ?? '',
+          document: formatDocument(match.document ?? ''),
+          phone: match.phone ?? '',
+          boardingPoint: match.address ?? current.boardingPoint
+        }));
+        setClientForm({
+          name: match.name ?? '',
+          document: formatDocument(match.document ?? ''),
+          phone: match.phone ?? '',
+          cep: formatCep(match.cep ?? ''),
+          address: match.address ?? ''
+        });
+        setShowInlinePatient(false);
+        setCpfLookupStatus('found');
+        pushToast('success', 'Paciente encontrado. Dados preenchidos.');
+      } else {
+        setCpfLookupStatus('missing');
+        setShowInlinePatient(true);
+        setClientForm((current) => ({
+          ...current,
+          document: formatDocument(document)
+        }));
+        showBanner('error', 'Paciente não encontrado. Complete o cadastro para continuar.');
+      }
+    } catch (error) {
+      showBanner('error', error instanceof Error ? error.message : 'Não foi possível buscar o CPF.');
+    }
+  }
+
   async function handleUpdateClient(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!session?.token || !activeClientId) return;
@@ -554,7 +627,7 @@ function App() {
         ? 'Nenhuma viagem registrada para este CPF.'
         : 'Nenhuma solicitação registrada no momento.';
   const isPatientSession = session?.role === 'cliente';
-  const canManagePatients = session ? ['operador', 'gerente', 'administrador'].includes(session.role) : false;
+  const canManagePatients = session ? ['gerente', 'administrador'].includes(session.role) : false;
   const canEditTrip = session ? ['operador', 'gerente', 'administrador'].includes(session.role) : false;
   const canResetUser = (user: UserRow) => {
     if (!session) return false;
@@ -927,64 +1000,135 @@ function App() {
         ) : null}
 
         {session.role === 'operador' && (
-          <section className="grid two-col" id="solicitacoes">
-            <article className="glass-card panel-card">
-              <div className="section-head">
-                <p className="eyebrow">Cadastro rápido</p>
-                <h2>Nova solicitação</h2>
+          <section className="glass-card panel-card" id="solicitacoes">
+            <div className="section-head">
+              <p className="eyebrow">Atendimento</p>
+              <div className="section-toolbar">
+                <h2>Solicitações</h2>
+                <div className="toolbar-actions">
+                  <button
+                    className={`cta ghost ${operatorView === 'novo' ? 'active' : ''}`}
+                    type="button"
+                    onClick={() => setOperatorView('novo')}
+                  >
+                    Nova solicitação
+                  </button>
+                  <button
+                    className={`cta ghost ${operatorView === 'recentes' ? 'active' : ''}`}
+                    type="button"
+                    onClick={() => setOperatorView('recentes')}
+                  >
+                    Solicitações recentes
+                  </button>
+                </div>
               </div>
-              <form className="request-form" onSubmit={handleCreateRequest}>
-                <input placeholder="Nome do paciente" value={requestForm.clientName} onChange={(event) => setRequestForm({ ...requestForm, clientName: event.target.value })} />
-                <input placeholder="CPF" value={requestForm.document} onChange={(event) => setRequestForm({ ...requestForm, document: formatDocument(event.target.value) })} />
-                <input placeholder="Telefone" value={requestForm.phone} onChange={(event) => setRequestForm({ ...requestForm, phone: event.target.value })} />
-                <input placeholder="Destino" value={requestForm.destination} onChange={(event) => setRequestForm({ ...requestForm, destination: event.target.value })} />
-                <input placeholder="Local de embarque" value={requestForm.boardingPoint} onChange={(event) => setRequestForm({ ...requestForm, boardingPoint: event.target.value })} />
-                <input placeholder="Saída prevista" value={requestForm.departureAt} onChange={(event) => setRequestForm({ ...requestForm, departureAt: event.target.value })} />
-                <input placeholder="Chegada prevista" value={requestForm.arrivalEta} onChange={(event) => setRequestForm({ ...requestForm, arrivalEta: event.target.value })} />
-                <input placeholder="Acompanhantes / carga" value={requestForm.companions} onChange={(event) => setRequestForm({ ...requestForm, companions: event.target.value })} />
-                <textarea placeholder="Observações" value={requestForm.notes} onChange={(event) => setRequestForm({ ...requestForm, notes: event.target.value })} />
-                <button className="cta" type="submit">
-                  Gerar protocolo
-                </button>
-              </form>
-            </article>
+            </div>
 
-            <article className="glass-card panel-card">
-              <div className="section-head">
-                <p className="eyebrow">Atendimento</p>
-                <h2>Solicitações recentes</h2>
-              </div>
-              <div className="filter-row">
-                <input placeholder="Filtrar por paciente, protocolo ou destino" value={requestFilter} onChange={(event) => setRequestFilter(event.target.value)} />
-              </div>
-              <div className="request-list">
-                {visibleRequests.length ? (
-                  visibleRequests.map((request) => (
-                    <article className={`request-row ${request.id === activeRequestId ? 'request-selected' : ''}`} key={request.id} onClick={() => setActiveRequestId(request.id)}>
-                      <div>
-                        <strong>{request.protocol}</strong>
-                        <p>
-                          {request.clientName} · {request.destination}
-                        </p>
-                        <small>
-                          {request.boardingPoint} · {request.departureAt}
-                        </small>
-                      </div>
-                      <div className="request-meta">
-                        <span className={`status status-${request.status}`}>{request.status}</span>
-                        <small>{request.phone}</small>
-                      </div>
-                    </article>
-                  ))
-                ) : (
-                  <div className="empty-state">
-                    <div className="empty-icon"></div>
-                    <strong>Solicitações vazias</strong>
-                    <p>{requestEmptyText}</p>
+            {operatorView === 'novo' ? (
+              <div className="operator-grid">
+                <form className="request-form" onSubmit={handleCreateRequest}>
+                  <div className="input-action">
+                    <input
+                      placeholder="CPF"
+                      value={requestForm.document}
+                      onChange={(event) => {
+                        const value = formatDocument(event.target.value);
+                        setRequestForm({ ...requestForm, document: value });
+                        setCpfLookupStatus('idle');
+                      }}
+                    />
+                    <button className="cta ghost" type="button" onClick={handleLookupPatient}>
+                      Buscar CPF
+                    </button>
                   </div>
-                )}
+                  <input placeholder="Nome do paciente" value={requestForm.clientName} onChange={(event) => setRequestForm({ ...requestForm, clientName: event.target.value })} />
+                  <input placeholder="Telefone" value={requestForm.phone} onChange={(event) => setRequestForm({ ...requestForm, phone: event.target.value })} />
+                  <input placeholder="Destino" value={requestForm.destination} onChange={(event) => setRequestForm({ ...requestForm, destination: event.target.value })} />
+                  <input placeholder="Local de embarque" value={requestForm.boardingPoint} onChange={(event) => setRequestForm({ ...requestForm, boardingPoint: event.target.value })} />
+                  <input placeholder="Saída prevista" value={requestForm.departureAt} onChange={(event) => setRequestForm({ ...requestForm, departureAt: event.target.value })} />
+                  <input placeholder="Chegada prevista" value={requestForm.arrivalEta} onChange={(event) => setRequestForm({ ...requestForm, arrivalEta: event.target.value })} />
+                  <input placeholder="Acompanhantes / carga" value={requestForm.companions} onChange={(event) => setRequestForm({ ...requestForm, companions: event.target.value })} />
+                  <textarea placeholder="Observações" value={requestForm.notes} onChange={(event) => setRequestForm({ ...requestForm, notes: event.target.value })} />
+                  <button className="cta" type="submit">
+                    Gerar protocolo
+                  </button>
+                </form>
+
+                {showInlinePatient ? (
+                  <div className="glass-card inline-card">
+                    <div className="section-head">
+                      <p className="eyebrow">Cadastro rápido</p>
+                      <h3>Novo paciente</h3>
+                    </div>
+                    <form className="request-form" onSubmit={handleInlinePatientSave}>
+                      <input placeholder="Nome completo" value={clientForm.name} onChange={(event) => setClientForm({ ...clientForm, name: event.target.value })} />
+                      <input placeholder="CPF" value={clientForm.document} onChange={(event) => setClientForm({ ...clientForm, document: formatDocument(event.target.value) })} />
+                      <input placeholder="Telefone" value={clientForm.phone} onChange={(event) => setClientForm({ ...clientForm, phone: event.target.value })} />
+                      <input placeholder="CEP" value={clientForm.cep} onChange={(event) => setClientForm({ ...clientForm, cep: formatCep(event.target.value) })} />
+                      <input placeholder="Endereço completo" value={clientForm.address} onChange={(event) => setClientForm({ ...clientForm, address: event.target.value })} />
+                      <div className="form-actions">
+                        <button
+                          className="cta ghost"
+                          type="button"
+                          onClick={() => {
+                            setShowInlinePatient(false);
+                            setCpfLookupStatus('idle');
+                          }}
+                        >
+                          Cancelar
+                        </button>
+                        <button className="cta" type="submit">
+                          Salvar paciente
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                ) : null}
               </div>
-            </article>
+            ) : (
+              <>
+                <div className="filter-row">
+                  <input placeholder="Filtrar por paciente, protocolo ou destino" value={requestFilter} onChange={(event) => setRequestFilter(event.target.value)} />
+                </div>
+                <div className="admin-table">
+                  <div className="admin-row admin-row-head">
+                    <span>Protocolo</span>
+                    <span>Paciente</span>
+                    <span>Saída</span>
+                    <span>Status</span>
+                    <span>Ação</span>
+                  </div>
+                  <div className="admin-table-body">
+                    {visibleRequests.length ? (
+                      visibleRequests.map((request) => (
+                        <div className="admin-row" key={request.id}>
+                          <strong>{request.protocol}</strong>
+                          <span>{request.clientName}</span>
+                          <span>{request.departureAt}</span>
+                          <span className={`status status-${request.status}`}>{request.status}</span>
+                          <button
+                            className="cta ghost"
+                            type="button"
+                            onClick={() => {
+                              setActiveRequestId(request.id);
+                              setActiveNav('detalhes');
+                            }}
+                          >
+                            Editar
+                          </button>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="empty-state">
+                        <div className="empty-icon"></div>
+                        <strong>Solicitações vazias</strong>
+                        <p>{requestEmptyText}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </section>
         )}
 
@@ -1268,16 +1412,33 @@ function App() {
                 <p className="eyebrow">Detalhe da viagem</p>
                 <h2>Central da solicitação</h2>
               </div>
-              <div className="detail-stack">
-                <p><strong>Protocolo:</strong> {activeRequest.protocol}</p>
-                <p><strong>Paciente:</strong> {activeRequest.clientName}</p>
-                <p><strong>Destino:</strong> {activeRequest.destination}</p>
-                <p><strong>Motorista:</strong> {activeRequest.driver || 'não atribuído'}</p>
-                <p><strong>Veículo:</strong> {activeRequest.vehicle || 'não atribuído'}</p>
-                <p><strong>PIN do paciente:</strong> {activeRequest.pinStatus}</p>
-                <p><strong>Confirmação:</strong> {activeRequest.clientConfirmedAt ?? 'pendente'}</p>
-                <p><strong>Observações:</strong> {activeRequest.notes}</p>
-              </div>
+              {session.role === 'operador' ? (
+                <div className="detail-summary">
+                  <div>
+                    <span>Protocolo</span>
+                    <strong>{activeRequest.protocol}</strong>
+                  </div>
+                  <div>
+                    <span>Paciente</span>
+                    <strong>{activeRequest.clientName}</strong>
+                  </div>
+                  <div>
+                    <span>Status</span>
+                    <strong className={`status status-${activeRequest.status}`}>{activeRequest.status}</strong>
+                  </div>
+                </div>
+              ) : (
+                <div className="detail-stack">
+                  <p><strong>Protocolo:</strong> {activeRequest.protocol}</p>
+                  <p><strong>Paciente:</strong> {activeRequest.clientName}</p>
+                  <p><strong>Destino:</strong> {activeRequest.destination}</p>
+                  <p><strong>Motorista:</strong> {activeRequest.driver || 'não atribuído'}</p>
+                  <p><strong>Veículo:</strong> {activeRequest.vehicle || 'não atribuído'}</p>
+                  <p><strong>PIN do paciente:</strong> {activeRequest.pinStatus}</p>
+                  <p><strong>Confirmação:</strong> {activeRequest.clientConfirmedAt ?? 'pendente'}</p>
+                  <p><strong>Observações:</strong> {activeRequest.notes}</p>
+                </div>
+              )}
 
               {canEditTrip ? (
                 <form className="request-form" onSubmit={handleSaveTrip}>
@@ -1360,7 +1521,12 @@ function App() {
             <article className="glass-card panel-card">
               <div className="section-head">
                 <p className="eyebrow">{session.role === 'cliente' ? 'Mensagens' : 'Mensagens e auditoria'}</p>
-                <h2>{session.role === 'cliente' ? 'Comunicação' : 'Histórico e comunicação'}</h2>
+                <div className="section-toolbar">
+                  <h2>{session.role === 'cliente' ? 'Comunicação' : 'Histórico e comunicação'}</h2>
+                  <button className={`status status-${activeRequest.status} status-pill`} type="button">
+                    {activeRequest.status}
+                  </button>
+                </div>
               </div>
               <div className="message-compose">
                 <textarea value={messageDraft} onChange={(event) => setMessageDraft(event.target.value)} placeholder="Escreva uma mensagem para a operação, motorista ou paciente" />
@@ -1403,15 +1569,17 @@ function App() {
 
               {session.role === 'cliente' ? null : (
                 <div className="audit-stack">
-                  {activeRequest.audit.length ? (
-                    activeRequest.audit.map((item) => (
+                  {activeRequest.audit.filter((item) => !item.label.includes('.')).length ? (
+                    activeRequest.audit
+                      .filter((item) => !item.label.includes('.'))
+                      .map((item) => (
                       <div className="audit-item" key={item.id}>
                         <strong>{item.label}</strong>
                         {item.details ? <small>{item.details}</small> : null}
                         {item.actor ? <span>{item.actor}</span> : null}
                         <span>{item.at}</span>
                       </div>
-                    ))
+                      ))
                   ) : (
                     <div className="empty-state compact">
                       <div className="empty-icon"></div>
