@@ -17,7 +17,7 @@ import {
   updateClient,
   updateRequest
 } from './lib/api';
-import { formatCep, formatDocument, formatTime, normalizeDocument, readJson, removeItem, SESSION_KEY, currentStamp, writeJson } from './lib/persistence';
+import { formatCep, formatDocument, formatTime, normalizeCep, normalizeDocument, readJson, removeItem, SESSION_KEY, currentStamp, writeJson } from './lib/persistence';
 import type { AccessRole, ClientFormState, RequestFormState, RequestStatus, SessionUser, TripRequest, UserFormState } from './types';
 import type { ClientRow, UserRow } from './lib/api';
 
@@ -435,6 +435,10 @@ function App() {
         showBanner('error', 'Informe o endereço completo do embarque.');
         return;
       }
+      if (normalizeCep(requestForm.boardingPoint).length < 8) {
+        showBanner('error', 'Informe o endereço completo com CEP.');
+        return;
+      }
       if (!requestDate || !requestTime || !consultDate || !consultTime) {
         showBanner('error', 'Informe data e hora da viagem e da consulta.');
         return;
@@ -679,6 +683,14 @@ function App() {
     event.preventDefault();
     if (!activeRequest || !session?.token) return;
 
+    if (!tripForm.boardingPoint.trim()) {
+      showBanner('error', 'Informe o endereço completo do embarque.');
+      return;
+    }
+    if (normalizeCep(tripForm.boardingPoint).length < 8) {
+      showBanner('error', 'Informe o endereço completo com CEP.');
+      return;
+    }
     const companionPayload = buildCompanionPayload(tripCompanion, tripCompanionName, tripCompanionCpf);
     const departureAt = buildDateTime(tripDate, tripTime);
     const arrivalEta = buildDateTime(tripConsultDate, tripConsultTime);
@@ -1214,14 +1226,20 @@ function App() {
                     value={requestForm.boardingPoint}
                     onChange={(event) => setRequestForm({ ...requestForm, boardingPoint: event.target.value })}
                   />
-                  <div className="input-group">
-                    <input type="date" value={requestDate} onChange={(event) => setRequestDate(event.target.value)} />
-                    <input type="time" value={requestTime} onChange={(event) => setRequestTime(formatTime(event.target.value))} />
-                  </div>
-                  <div className="input-group">
-                    <input type="date" value={consultDate} onChange={(event) => setConsultDate(event.target.value)} />
-                    <input type="time" value={consultTime} onChange={(event) => setConsultTime(formatTime(event.target.value))} />
-                  </div>
+                  <label>
+                    <span>Data e hora da viagem</span>
+                    <div className="input-group">
+                      <input type="date" value={requestDate} onChange={(event) => setRequestDate(event.target.value)} />
+                      <input type="time" value={requestTime} onChange={(event) => setRequestTime(formatTime(event.target.value))} />
+                    </div>
+                  </label>
+                  <label>
+                    <span>Data e hora da consulta</span>
+                    <div className="input-group">
+                      <input type="date" value={consultDate} onChange={(event) => setConsultDate(event.target.value)} />
+                      <input type="time" value={consultTime} onChange={(event) => setConsultTime(formatTime(event.target.value))} />
+                    </div>
+                  </label>
                   <label>
                     <span>Acompanhante</span>
                     <select
@@ -1480,7 +1498,7 @@ function App() {
                     <input value={activeRequest.vehicle} onChange={(event) => patchRequest(activeRequest.id, { vehicle: event.target.value })} />
                   </label>
                   <label>
-                    <span>Saída</span>
+                    <span>Data e hora da viagem</span>
                     <div className="input-group">
                       <input
                         type="date"
@@ -1495,7 +1513,7 @@ function App() {
                     </div>
                   </label>
                   <label>
-                    <span>Horário da consulta</span>
+                    <span>Data e hora da consulta</span>
                     <div className="input-group">
                       <input
                         type="date"
@@ -1553,7 +1571,7 @@ function App() {
                         <strong>{request.clientName}</strong>
                         <p>{request.destination}</p>
                         <small>
-                          {request.boardingPoint} · {request.departureAt}
+                          {request.boardingPoint} · {formatSchedule(request.departureAt)}
                         </small>
                       </div>
                       <div className="request-meta">
@@ -1617,7 +1635,7 @@ function App() {
                         {request.clientName} · {request.destination}
                       </p>
                       <small>
-                        Embarque: {request.boardingPoint} · Saída: {request.departureAt}
+                        Embarque: {request.boardingPoint} · Saída: {formatSchedule(request.departureAt)}
                       </small>
                     </div>
                     <div className="request-meta">
@@ -1685,14 +1703,20 @@ function App() {
                     value={tripForm.boardingPoint}
                     onChange={(event) => setTripForm({ ...tripForm, boardingPoint: event.target.value })}
                   />
-                  <div className="input-group">
-                    <input type="date" value={tripDate} onChange={(event) => setTripDate(event.target.value)} />
-                    <input type="time" value={tripTime} onChange={(event) => setTripTime(formatTime(event.target.value))} />
-                  </div>
-                  <div className="input-group">
-                    <input type="date" value={tripConsultDate} onChange={(event) => setTripConsultDate(event.target.value)} />
-                    <input type="time" value={tripConsultTime} onChange={(event) => setTripConsultTime(formatTime(event.target.value))} />
-                  </div>
+                  <label>
+                    <span>Data e hora da viagem</span>
+                    <div className="input-group">
+                      <input type="date" value={tripDate} onChange={(event) => setTripDate(event.target.value)} />
+                      <input type="time" value={tripTime} onChange={(event) => setTripTime(formatTime(event.target.value))} />
+                    </div>
+                  </label>
+                  <label>
+                    <span>Data e hora da consulta</span>
+                    <div className="input-group">
+                      <input type="date" value={tripConsultDate} onChange={(event) => setTripConsultDate(event.target.value)} />
+                      <input type="time" value={tripConsultTime} onChange={(event) => setTripConsultTime(formatTime(event.target.value))} />
+                    </div>
+                  </label>
                   <label>
                     <span>Acompanhante</span>
                     <select

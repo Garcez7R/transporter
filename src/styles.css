@@ -569,6 +569,12 @@ h1 {
   gap: 10px;
 }
 
+@media (max-width: 720px) {
+  .input-group {
+    grid-template-columns: 1fr;
+  }
+}
+
 .detail-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
