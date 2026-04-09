@@ -63,6 +63,67 @@
     'Inter', 'Segoe UI', 'Trebuchet MS', Verdana, sans-serif;
 }
 
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f7f8f9;
+  --bg-soft: #eff1f3;
+  --surface: rgba(255, 255, 255, 0.9);
+  --surface-strong: rgba(255, 255, 255, 0.98);
+  --surface-elevated: rgba(250, 251, 252, 0.98);
+  --text: #1c2328;
+  --text-soft: #5a6871;
+  --muted: #6c7a84;
+  --silver: #4b5a64;
+  --silver-strong: #1c2328;
+  --gold: #c69212;
+  --green: #168553;
+  --cyan: #2f7fb0;
+  --red: #b34343;
+  --amber: #d4a417;
+  --line: rgba(28, 35, 40, 0.12);
+  --line-strong: rgba(28, 35, 40, 0.18);
+  --shadow: 0 20px 50px rgba(28, 35, 40, 0.12);
+  --shadow-float:
+    0 12px 26px rgba(28, 35, 40, 0.14),
+    0 6px 12px rgba(28, 35, 40, 0.08);
+  --shadow-panel:
+    0 24px 40px rgba(28, 35, 40, 0.12),
+    0 8px 18px rgba(28, 35, 40, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  --glow: rgba(22, 133, 83, 0.08);
+  --bg-gradient:
+    radial-gradient(circle at 12% 16%, rgba(49, 65, 70, 0.08), transparent 0 24%),
+    radial-gradient(circle at 78% 22%, rgba(22, 133, 83, 0.08), transparent 0 20%),
+    radial-gradient(circle at 82% 10%, rgba(212, 171, 24, 0.06), transparent 0 18%),
+    linear-gradient(180deg, #ffffff 0%, #f3f5f6 42%, #eef1f2 100%);
+  --panel-surface:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(244, 246, 247, 0.92));
+  --panel-overlay:
+    linear-gradient(140deg, rgba(0, 0, 0, 0.04), transparent 36%);
+  --panel-accent:
+    radial-gradient(circle at top right, rgba(22, 133, 83, 0.08), transparent 26%),
+    radial-gradient(circle at 88% 18%, rgba(212, 171, 24, 0.08), transparent 22%);
+  --panel-chrome:
+    radial-gradient(circle at 1rem 1rem, rgba(22, 133, 83, 0.48) 0 1.4px, transparent 1.7px),
+    radial-gradient(circle at 1.45rem 1rem, rgba(47, 127, 176, 0.48) 0 1.4px, transparent 1.7px),
+    radial-gradient(circle at 1.9rem 1rem, rgba(28, 35, 40, 0.16) 0 1.4px, transparent 1.7px),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.04) 0 2.05rem, rgba(0, 0, 0, 0.08) 2.05rem 2.1rem, transparent 2.1rem);
+  --card-surface:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(244, 246, 247, 0.92));
+  --card-surface-hover:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(242, 244, 246, 0.94));
+  --control-surface:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(244, 246, 247, 0.9));
+  --control-surface-hover:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(242, 244, 246, 0.92));
+  --accent-wash:
+    linear-gradient(180deg, rgba(212, 175, 55, 0.12), rgba(255, 255, 255, 0.02));
+  --accent: var(--green);
+  --accent-2: #126b44;
+  --warning: var(--gold);
+  --danger: var(--red);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -570,6 +631,13 @@ h1 {
 
 .internal-header {
   gap: 16px;
+}
+
+.sticky-header {
+  position: sticky;
+  top: 16px;
+  z-index: 6;
+  backdrop-filter: blur(26px);
 }
 
 .internal-header-top {

@@ -115,6 +115,9 @@ function App() {
     role: 'operador'
   });
   const [patientFontLarge, setPatientFontLarge] = useState(() => readJson<boolean>('transporter:patient-font', false));
+  const [themeMode, setThemeMode] = useState<'dark' | 'light'>(() =>
+    readJson<'dark' | 'light'>('transporter:theme', 'dark')
+  );
   const [activeNav, setActiveNav] = useState('visao');
 
   const patientView = !session || session.role === 'cliente';
@@ -126,6 +129,13 @@ function App() {
   useEffect(() => {
     writeJson('transporter:patient-font', patientFontLarge);
   }, [patientFontLarge]);
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.dataset.theme = themeMode;
+    }
+    writeJson('transporter:theme', themeMode);
+  }, [themeMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -910,6 +920,13 @@ function App() {
           <header className="topbar topbar-v2 patient-topbar">
             <div></div>
             <div className="topbar-actions">
+              <button
+                className="cta ghost"
+                type="button"
+                onClick={() => setThemeMode((current) => (current === 'dark' ? 'light' : 'dark'))}
+              >
+                {themeMode === 'dark' ? 'Modo claro' : 'Modo escuro'}
+              </button>
               <button className="cta ghost font-toggle" type="button" onClick={() => setPatientFontLarge((prev) => !prev)}>
                 {patientFontLarge ? 'Fonte normal' : 'Fonte maior'}
               </button>
@@ -919,13 +936,20 @@ function App() {
             </div>
           </header>
         ) : (
-          <section className="glass-card panel-card internal-header">
+          <section className="glass-card panel-card internal-header sticky-header">
             <div className="internal-header-top">
               <div className="internal-header-name">
                 <strong>{session.name}</strong>
                 <span>{roleLabels[session.role]}</span>
               </div>
               <div className="topbar-actions">
+                <button
+                  className="cta ghost"
+                  type="button"
+                  onClick={() => setThemeMode((current) => (current === 'dark' ? 'light' : 'dark'))}
+                >
+                  {themeMode === 'dark' ? 'Modo claro' : 'Modo escuro'}
+                </button>
                 <button className="cta ghost" onClick={handleLogout} type="button">
                   Sair
                 </button>
