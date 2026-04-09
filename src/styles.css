@@ -1020,6 +1020,53 @@ h1 {
   background: rgba(255, 255, 255, 0.95);
 }
 
+:root[data-theme='light'] .topbar-v2,
+:root[data-theme='light'] .login-card,
+:root[data-theme='light'] .login-card-v2,
+:root[data-theme='light'] .panel-card,
+:root[data-theme='light'] .modal-card,
+:root[data-theme='light'] .request-form,
+:root[data-theme='light'] .message-compose,
+:root[data-theme='light'] .assignment-grid,
+:root[data-theme='light'] .detail-summary,
+:root[data-theme='light'] .filter-row,
+:root[data-theme='light'] .profile-summary,
+:root[data-theme='light'] .section-head {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(28, 35, 40, 0.12);
+}
+
+:root[data-theme='light'] .topbar-v2 {
+  border-bottom-color: rgba(28, 35, 40, 0.12);
+}
+
+:root[data-theme='light'] .topbar-v2 h2,
+:root[data-theme='light'] .section-head h2,
+:root[data-theme='light'] .section-head h3 {
+  color: var(--text);
+}
+
+:root[data-theme='light'] .request-row,
+:root[data-theme='light'] .admin-row,
+:root[data-theme='light'] .manager-card,
+:root[data-theme='light'] .fleet-row,
+:root[data-theme='light'] .admin-card {
+  color: var(--text);
+}
+
+:root[data-theme='light'] .status {
+  background: rgba(28, 35, 40, 0.05);
+  color: var(--text);
+}
+
+:root[data-theme='light'] .cta:focus-visible,
+:root[data-theme='light'] .saas-nav-link:focus-visible,
+:root[data-theme='light'] input:focus,
+:root[data-theme='light'] textarea:focus,
+:root[data-theme='light'] select:focus {
+  box-shadow: 0 0 0 4px rgba(22, 133, 83, 0.16);
+}
+
 :root[data-theme='light'] input::placeholder,
 :root[data-theme='light'] textarea::placeholder {
   color: rgba(28, 35, 40, 0.4);
