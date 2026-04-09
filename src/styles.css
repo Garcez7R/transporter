@@ -923,6 +923,11 @@ h1 {
   backdrop-filter: blur(26px);
 }
 
+:root[data-theme='light'] .topbar {
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 16px 32px rgba(28, 35, 40, 0.14);
+}
+
 .topbar-actions {
   display: inline-flex;
   align-items: center;
