@@ -568,29 +568,6 @@ function App() {
               </div>
             </div>
 
-            <div className="operator-kpis" role="region" aria-label="Indicadores de desempenho">
-              <div className="status-card">
-                <strong>Hoje</strong>
-                <span className="kpi-value" aria-label={`${statusTotals.hoje} solicitações para hoje`}>{statusTotals.hoje}</span>
-                <small>Solicitações para hoje</small>
-              </div>
-              <div className="status-card">
-                <strong>Em rota</strong>
-                <span className="kpi-value" aria-label={`${statusTotals.emRota} viagens em andamento`}>{statusTotals.emRota}</span>
-                <small>Viagens em andamento</small>
-              </div>
-              <div className="status-card">
-                <strong>Pendentes</strong>
-                <span className="kpi-value" aria-label={`${statusTotals.pendentes} solicitações aguardando distribuição`}>{statusTotals.pendentes}</span>
-                <small>Aguardando distribuição</small>
-              </div>
-              <div className="status-card">
-                <strong>Confirmados</strong>
-                <span className="kpi-value" aria-label={`${statusTotals.confirmados} viagens agendadas`}>{statusTotals.confirmados}</span>
-                <small>Viagens agendadas</small>
-              </div>
-            </div>
-
 
             {operatorView === 'novo' ? (
               <div className="operator-grid">
@@ -682,54 +659,92 @@ function App() {
               </div>
             ) : operatorView === 'recentes' ? (
               <>
-                <div className="filter-row">
-                  <input placeholder="Filtrar por paciente, protocolo ou destino" value={requestFilter} onChange={(event) => setRequestFilter(event.target.value)} />
-                  <div className="filter-actions">
-                    <label htmlFor="sort-select" className="sr-only">Ordenar solicitações por</label>
-                    <select id="sort-select" value={requestSort} onChange={(event) => setRequestSort(event.target.value as 'recent' | 'status' | 'destination')} aria-label="Ordenar solicitações">
-                      <option value="recent">Ordenar por data</option>
-                      <option value="status">Ordenar por status</option>
-                      <option value="destination">Ordenar por destino</option>
+                <div className="table-toolbar">
+                  <div className="table-filters">
+                    <input
+                      type="search"
+                      placeholder="Buscar por paciente, protocolo ou destino..."
+                      value={requestFilter}
+                      onChange={(event) => setRequestFilter(event.target.value)}
+                      aria-label="Filtrar solicitações"
+                    />
+                    <select
+                      value={requestSort}
+                      onChange={(event) => setRequestSort(event.target.value as 'recent' | 'status' | 'destination')}
+                      aria-label="Ordenar solicitações"
+                    >
+                      <option value="recent">Mais recentes</option>
+                      <option value="status">Por status</option>
+                      <option value="destination">Por destino</option>
                     </select>
                   </div>
+
+                  {selectedRequestIds.length > 0 && (
+                    <div className="batch-actions" role="toolbar" aria-label="Ações em lote">
+                      <span className="batch-info">
+                        <strong>{selectedRequestIds.length}</strong> selecionada{selectedRequestIds.length > 1 ? 's' : ''}
+                      </span>
+                      <div className="batch-controls">
+                        <button
+                          className="cta ghost"
+                          onClick={handleBatchStatusUpdate.bind(null, 'agendada')}
+                          aria-label="Agendar selecionadas"
+                        >
+                          Agendar
+                        </button>
+                        <button
+                          className="cta ghost"
+                          onClick={handleBatchStatusUpdate.bind(null, 'em_rota')}
+                          aria-label="Marcar como em rota"
+                        >
+                          Em rota
+                        </button>
+                        <button
+                          className="cta ghost"
+                          onClick={handleBatchStatusUpdate.bind(null, 'concluida')}
+                          aria-label="Marcar como concluída"
+                        >
+                          Concluir
+                        </button>
+                        <button
+                          className="cta ghost danger"
+                          onClick={handleBatchDelete}
+                          aria-label="Excluir selecionadas"
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {selectedRequestIds.length > 0 && (
-                  <div className="batch-actions" role="toolbar" aria-label="Ações em lote para solicitações selecionadas">
-                    <span className="batch-count">{selectedRequestIds.length} selecionado{selectedRequestIds.length > 1 ? 's' : ''}</span>
-                    <div className="batch-buttons">
-                      <button className="cta ghost" type="button" onClick={handleBatchStatusUpdate.bind(null, 'agendada')} aria-label={`Agendar ${selectedRequestIds.length} solicitações selecionadas`}>
-                        Agendar
-                      </button>
-                      <button className="cta ghost" type="button" onClick={handleBatchStatusUpdate.bind(null, 'em_rota')} aria-label={`Marcar ${selectedRequestIds.length} solicitações como em rota`}>
-                        Em rota
-                      </button>
-                      <button className="cta ghost" type="button" onClick={handleBatchStatusUpdate.bind(null, 'concluida')} aria-label={`Marcar ${selectedRequestIds.length} solicitações como concluídas`}>
-                        Concluir
-                      </button>
-                      <button className="cta ghost danger" type="button" onClick={handleBatchDelete} aria-label={`Excluir ${selectedRequestIds.length} solicitações selecionadas`}>
-                        Excluir
-                      </button>
-                    </div>
-                  </div>
-                )}
                 <div className="admin-table operator-admin-table">
                   <div className="admin-row admin-row-head operator-row-head">
                     <label className="table-select">
-                      <input type="checkbox" checked={selectedAll} onChange={handleToggleSelectAll} aria-label="Selecionar todas as solicitações" />
+                      <input
+                        type="checkbox"
+                        checked={selectedAll}
+                        onChange={handleToggleSelectAll}
+                        aria-label="Selecionar todas as solicitações"
+                      />
                     </label>
                     <span>Protocolo</span>
                     <span>Paciente</span>
                     <span>Saída</span>
                     <span>Status</span>
-                    <span>Ação</span>
+                    <span>Ações</span>
                   </div>
                   <div className="admin-table-body operator-scroll">
                     {sortedRequests.length ? (
                       sortedRequests.map((request) => (
                         <div className={`admin-row operator-row ${selectedRequestIds.includes(request.id) ? 'request-selected' : ''}`} key={request.id}>
                           <label className="table-select">
-                            <input type="checkbox" checked={selectedRequestIds.includes(request.id)} onChange={() => toggleSelectedRequest(request.id)} aria-label={`Selecionar solicitação ${request.protocol}`} />
+                            <input
+                              type="checkbox"
+                              checked={selectedRequestIds.includes(request.id)}
+                              onChange={() => toggleSelectedRequest(request.id)}
+                              aria-label={`Selecionar solicitação ${request.protocol}`}
+                            />
                           </label>
                           <strong>{request.protocol}</strong>
                           <div className="admin-cell">
@@ -740,10 +755,18 @@ function App() {
                           <span>{formatSchedule(request.departureAt)}</span>
                           <span className={`status status-${request.status}`}>{statusLabels[request.status]}</span>
                           <div className="table-actions">
-                            <button className="cta ghost" type="button" onClick={() => { setActiveRequestId(request.id); setActiveNav('detalhes'); }}>
+                            <button
+                              className="cta ghost"
+                              onClick={() => { setActiveRequestId(request.id); setActiveNav('detalhes'); }}
+                              aria-label={`Editar solicitação ${request.protocol}`}
+                            >
                               Editar
                             </button>
-                            <button className="cta ghost danger" type="button" onClick={() => { if (window.confirm('Deseja excluir esta solicitação?')) { handleDeleteRequest(request.id); } }}>
+                            <button
+                              className="cta ghost danger"
+                              onClick={() => { if (window.confirm('Deseja excluir esta solicitação?')) { handleDeleteRequest(request.id); } }}
+                              aria-label={`Excluir solicitação ${request.protocol}`}
+                            >
                               Excluir
                             </button>
                           </div>
@@ -752,8 +775,8 @@ function App() {
                     ) : (
                       <div className="empty-state">
                         <div className="empty-icon"></div>
-                        <strong>Solicitações vazias</strong>
-                        <p>{requestEmptyText}</p>
+                        <strong>Nenhuma solicitação encontrada</strong>
+                        <p>{requestFilter ? 'Tente ajustar os filtros de busca.' : 'As solicitações aparecerão aqui quando forem criadas.'}</p>
                       </div>
                     )}
                   </div>

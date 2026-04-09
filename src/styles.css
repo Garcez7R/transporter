@@ -700,10 +700,6 @@ h1 {
 }
 
 @media (max-width: 960px) {
-  .operator-kpis {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .operator-status-bar {
     top: 96px;
   }
@@ -714,8 +710,17 @@ h1 {
     gap: 12px;
   }
 
-  .batch-buttons {
+  .batch-controls {
     justify-content: center;
+  }
+
+  .table-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .table-filters input[type="search"] {
+    min-width: auto;
   }
 }
 
@@ -746,13 +751,8 @@ h1 {
     justify-content: flex-start;
   }
 
-  .filter-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .filter-actions {
-    justify-content: center;
+  .table-toolbar {
+    gap: 12px;
   }
 
   .batch-actions {
@@ -1895,6 +1895,28 @@ select:focus {
   align-items: center;
 }
 
+.table-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.table-filters {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.table-filters input[type="search"] {
+  flex: 1;
+  min-width: 280px;
+}
+
+.table-filters select {
+  min-width: 160px;
+}
+
 .batch-actions {
   display: flex;
   align-items: center;
@@ -1906,12 +1928,12 @@ select:focus {
   margin-bottom: 16px;
 }
 
-.batch-count {
+.batch-info {
   font-weight: 600;
   color: var(--text);
 }
 
-.batch-buttons {
+.batch-controls {
   display: flex;
   gap: 8px;
 }
