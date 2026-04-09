@@ -884,6 +884,13 @@ function App() {
               <h2>Entre com CPF e PIN</h2>
             </div>
             <div className="topbar-actions">
+              <button
+                className="cta ghost"
+                type="button"
+                onClick={() => setThemeMode((current) => (current === 'dark' ? 'light' : 'dark'))}
+              >
+                {themeMode === 'dark' ? 'Modo claro' : 'Modo escuro'}
+              </button>
               <button className="cta ghost font-toggle" type="button" onClick={() => setPatientFontLarge((prev) => !prev)}>
                 {patientFontLarge ? 'Fonte normal' : 'Fonte maior'}
               </button>
