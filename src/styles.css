@@ -1186,29 +1186,34 @@ h1 {
 
 .status {
   padding: 6px 10px;
-  color: var(--green);
-  background: rgba(63, 185, 80, 0.16);
+  color: var(--text);
+  background: rgba(201, 210, 221, 0.18);
   text-transform: capitalize;
 }
 
 .status-aguardando_distribuicao {
-  color: var(--gold);
-  background: rgba(212, 175, 55, 0.18);
+  color: #f6d57a;
+  background: rgba(246, 213, 122, 0.18);
 }
 
 .status-em_atendimento {
-  color: var(--cyan);
-  background: rgba(79, 215, 255, 0.16);
+  color: #7dd3ff;
+  background: rgba(125, 211, 255, 0.16);
+}
+
+.status-agendada {
+  color: #7fe7a6;
+  background: rgba(127, 231, 166, 0.18);
 }
 
 .status-concluida {
-  color: var(--green);
-  background: rgba(63, 185, 80, 0.16);
+  color: #6fe38f;
+  background: rgba(111, 227, 143, 0.18);
 }
 
 .status-cancelada {
-  color: var(--red);
-  background: rgba(255, 90, 95, 0.16);
+  color: #ff8b8f;
+  background: rgba(255, 139, 143, 0.18);
 }
 
 .api-card {
