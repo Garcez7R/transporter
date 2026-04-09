@@ -1229,7 +1229,7 @@ function App() {
                     <span>Status</span>
                     <span>Ação</span>
                   </div>
-                  <div className="admin-table-body">
+                  <div className="admin-table-body operator-scroll">
                     {visibleRequests.length ? (
                       visibleRequests.map((request) => (
                         <div className="admin-row" key={request.id}>

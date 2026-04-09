@@ -1159,6 +1159,10 @@ h1 {
   padding-right: 6px;
 }
 
+.admin-table-body.operator-scroll {
+  max-height: 360px;
+}
+
 .admin-user {
   display: flex;
   align-items: center;
