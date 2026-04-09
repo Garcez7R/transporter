@@ -34,6 +34,7 @@ export type UseRequestsResult = {
   setMessageDraft: (value: string) => void;
   tripForm: {
     destination: string;
+    destinationFacility: string;
     boardingPoint: string;
     departureAt: string;
     arrivalEta: string;
@@ -105,6 +106,7 @@ export function useRequests(session: SessionUser | null, showBanner: (type: Bann
   const [messageDraft, setMessageDraft] = useState('');
   const [tripForm, setTripForm] = useState<UseRequestsResult['tripForm']>({
     destination: '',
+    destinationFacility: '',
     boardingPoint: '',
     departureAt: '',
     arrivalEta: '',
@@ -166,6 +168,7 @@ export function useRequests(session: SessionUser | null, showBanner: (type: Bann
     if (!activeRequest) return;
     setTripForm({
       destination: activeRequest.destination,
+      destinationFacility: activeRequest.destinationFacility,
       boardingPoint: activeRequest.boardingPoint,
       departureAt: activeRequest.departureAt,
       arrivalEta: activeRequest.arrivalEta,
@@ -215,6 +218,10 @@ export function useRequests(session: SessionUser | null, showBanner: (type: Bann
       }
       if (normalizeCep(requestForm.cep).length < 8) {
         showBanner('error', 'Informe o CEP do embarque.');
+        return;
+      }
+      if (!requestForm.destinationFacility.trim()) {
+        showBanner('error', 'Informe o hospital, clínica ou posto de destino.');
         return;
       }
       if (!requestDate || !requestTime || !consultDate || !consultTime) {
@@ -315,6 +322,7 @@ export function useRequests(session: SessionUser | null, showBanner: (type: Bann
 
     await patchRequest(activeRequest.id, {
       destination: tripForm.destination,
+      destinationFacility: tripForm.destinationFacility,
       boardingPoint: tripForm.boardingPoint,
       departureAt,
       arrivalEta,

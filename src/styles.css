@@ -565,6 +565,155 @@ h1 {
   gap: 18px;
 }
 
+.operator-status-bar {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+  position: sticky;
+  top: 112px;
+  z-index: 4;
+}
+
+.operator-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.status-card {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.status-card strong {
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.status-card span {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.status-card small {
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.operator-toolbar {
+  display: grid;
+  gap: 12px;
+}
+
+.operator-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.sort-select {
+  display: flex;
+  justify-content: flex-start;
+  gap: 10px;
+  align-items: center;
+  color: var(--muted);
+}
+
+.sort-select select {
+  min-width: 175px;
+  padding: 10px 12px;
+  border-radius: 16px;
+}
+
+.operator-admin-table .admin-row {
+  grid-template-columns: 40px minmax(0, 1.5fr) minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 1.2fr);
+}
+
+.operator-admin-table .admin-row-head {
+  align-items: center;
+}
+
+.table-select {
+  display: grid;
+  place-items: center;
+}
+
+.table-select input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+.operator-admin-table .admin-row:hover {
+  background: rgba(79, 215, 255, 0.06);
+}
+
+.operator-admin-table .request-selected {
+  outline: 1px solid rgba(79, 215, 255, 0.24);
+  background: rgba(79, 215, 255, 0.12);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 960px) {
+  .operator-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .operator-status-bar {
+    top: 96px;
+  }
+}
+
+@media (max-width: 720px) {
+  .operator-status-bar {
+    position: relative;
+    top: auto;
+  }
+
+  .operator-kpis {
+    grid-template-columns: 1fr;
+  }
+
+  .operator-admin-table .admin-row,
+  .operator-admin-table .admin-row-head {
+    grid-template-columns: 40px minmax(0, 1fr);
+    grid-template-rows: repeat(3, auto);
+  }
+
+  .operator-admin-table .admin-row-head span,
+  .operator-admin-table .operator-row span,
+  .operator-admin-table .operator-row strong,
+  .operator-admin-table .operator-row .admin-cell {
+    grid-column: 2 / -1;
+  }
+
+  .operator-admin-table .operator-row .table-actions {
+    justify-content: flex-start;
+  }
+}
+
 .inline-card {
   padding: 20px;
 }

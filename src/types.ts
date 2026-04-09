@@ -64,6 +64,7 @@ export interface TripRequest {
   clientAddress?: string;
   boardingCep?: string;
   destination: string;
+  destinationFacility: string;
   boardingPoint: string;
   departureAt: string;
   arrivalEta: string;
@@ -99,6 +100,7 @@ export interface RequestFormState {
   document: string;
   phone: string;
   destination: string;
+  destinationFacility: string;
   cep: string;
   street: string;
   number: string;
@@ -147,6 +149,7 @@ export type RequestPatch = Partial<
     TripRequest,
     | 'status'
     | 'destination'
+    | 'destinationFacility'
     | 'driver'
     | 'vehicle'
     | 'notes'

@@ -7,6 +7,7 @@ type RequestDetailsProps = {
   canEditTrip: boolean;
   tripForm: {
     destination: string;
+    destinationFacility: string;
     boardingPoint: string;
     departureAt: string;
     arrivalEta: string;
@@ -92,6 +93,9 @@ export function RequestDetails({
           <p>
             <strong>Destino:</strong> {activeRequest.destination}
           </p>
+          <p>
+            <strong>Hospital/Clínica/Posto:</strong> {activeRequest.destinationFacility || 'Não informado'}
+          </p>
           {session.role !== 'operador' ? (
             <>
               <p>
@@ -116,9 +120,14 @@ export function RequestDetails({
         {canEditTrip ? (
           <form className="request-form" onSubmit={handleSaveTrip}>
             <input
-              placeholder="Destino"
+              placeholder="Cidade de destino"
               value={tripForm.destination}
               onChange={(event) => setTripForm({ ...tripForm, destination: event.target.value })}
+            />
+            <input
+              placeholder="Hospital / Clínica / Posto"
+              value={tripForm.destinationFacility}
+              onChange={(event) => setTripForm({ ...tripForm, destinationFacility: event.target.value })}
             />
             <input
               placeholder="Endereço completo"
@@ -208,6 +217,7 @@ export function RequestDetails({
                 onClick={() => {
                   setTripForm({
                     destination: activeRequest.destination,
+                    destinationFacility: activeRequest.destinationFacility,
                     boardingPoint: activeRequest.boardingPoint,
                     departureAt: activeRequest.departureAt,
                     arrivalEta: activeRequest.arrivalEta,

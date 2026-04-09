@@ -73,6 +73,7 @@ export async function createRequest(
     document: string;
     phone: string;
     destination: string;
+    destinationFacility: string;
     boardingPoint: string;
     boardingCep?: string;
     departureAt: string;
@@ -97,6 +98,7 @@ export async function updateRequest(
   payload: {
     status?: RequestStatus;
     destination?: string;
+    destinationFacility?: string;
     driver?: string;
     vehicle?: string;
     notes?: string;

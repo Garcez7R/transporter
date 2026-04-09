@@ -132,6 +132,7 @@ function App() {
     handleSaveTrip,
     applyManagerAddress,
     patchRequest,
+    refreshRequests,
     getInitials,
     formatAddressDisplay,
     formatSchedule,
@@ -170,6 +171,27 @@ function App() {
 
   const [activeNav, setActiveNav] = useState('visao');
   const [operatorView, setOperatorView] = useState<'novo' | 'recentes' | 'pacientes'>('novo');
+  const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>([]);
+  const [requestSort, setRequestSort] = useState<'recent' | 'status' | 'destination'>('recent');
+
+  const sortedRequests = useMemo(() => {
+    const sorted = [...visibleRequests];
+    if (requestSort === 'status') {
+      return sorted.sort((a, b) => statusLabels[a.status].localeCompare(statusLabels[b.status]));
+    }
+    if (requestSort === 'destination') {
+      return sorted.sort((a, b) => a.destination.localeCompare(b.destination));
+    }
+    return sorted.sort((a, b) => new Date(b.departureAt).getTime() - new Date(a.departureAt).getTime());
+  }, [visibleRequests, requestSort]);
+
+  const selectedAll = sortedRequests.length > 0 && selectedRequestIds.length === sortedRequests.length;
+  const statusTotals = useMemo(() => ({
+    hoje: pendingToday,
+    emRota: inRoute,
+    pendentes: pendingDispatch + pendingPinChange,
+    confirmados: sortedRequests.filter((request) => ['agendada', 'concluida'].includes(request.status)).length
+  }), [pendingToday, inRoute, pendingDispatch, pendingPinChange, sortedRequests]);
 
   const patientView = !session || session.role === 'cliente';
   const isPatientSession = session?.role === 'cliente';
@@ -223,6 +245,47 @@ function App() {
     if (session?.role === 'operador' && item.id === 'solicitacoes' && operatorView === 'pacientes') {
       setOperatorView('novo');
     }
+  }
+
+  function toggleSelectedRequest(id: string) {
+    setSelectedRequestIds((current) =>
+      current.includes(id) ? current.filter((selected) => selected !== id) : [...current, id]
+    );
+  }
+
+  function handleToggleSelectAll() {
+    if (selectedAll) {
+      setSelectedRequestIds([]);
+      return;
+    }
+    setSelectedRequestIds(sortedRequests.map((request) => request.id));
+  }
+
+  async function handleBatchDelete() {
+    if (!selectedRequestIds.length) return;
+    if (!window.confirm(`Excluir ${selectedRequestIds.length} solicitações selecionadas?`)) return;
+
+    for (const requestId of selectedRequestIds) {
+      await handleDeleteRequest(requestId);
+    }
+    setSelectedRequestIds([]);
+    if (session?.token) {
+      await refreshRequests(session.token);
+    }
+  }
+
+  async function handleBatchStatusUpdate(status: RequestStatus) {
+    if (!selectedRequestIds.length) return;
+
+    for (const requestId of selectedRequestIds) {
+      await patchRequest(requestId, { status });
+    }
+
+    setSelectedRequestIds([]);
+    if (session?.token) {
+      await refreshRequests(session.token);
+    }
+    pushToast('success', `Status atualizado para ${statusLabels[status]} em ${selectedRequestIds.length} solicitações.`);
   }
 
   async function handleLookupCep(value: string, onSuccess: (data: { street?: string; neighborhood?: string; city?: string }) => void) {
@@ -505,6 +568,56 @@ function App() {
               </div>
             </div>
 
+            <div className="operator-status-bar glass-card">
+              <div className="operator-kpis">
+                <article className="status-card">
+                  <strong>Hoje</strong>
+                  <span>{statusTotals.hoje}</span>
+                  <small>Solicitações agendadas para hoje</small>
+                </article>
+                <article className="status-card">
+                  <strong>Em rota</strong>
+                  <span>{statusTotals.emRota}</span>
+                  <small>Pacientes em deslocamento</small>
+                </article>
+                <article className="status-card">
+                  <strong>Pendente</strong>
+                  <span>{statusTotals.pendentes}</span>
+                  <small>Solicitações aguardando ação</small>
+                </article>
+                <article className="status-card">
+                  <strong>Confirmado</strong>
+                  <span>{statusTotals.confirmados}</span>
+                  <small>Viagens agendadas ou concluídas</small>
+                </article>
+              </div>
+
+              <div className="operator-toolbar">
+                <div className="operator-actions">
+                  <button className="cta ghost" type="button" onClick={handleToggleSelectAll}>
+                    {selectedAll ? 'Limpar seleção' : 'Selecionar todas'}
+                  </button>
+                  <button className="cta ghost danger" type="button" disabled={!selectedRequestIds.length} onClick={handleBatchDelete}>
+                    Excluir selecionadas
+                  </button>
+                  <button className="cta ghost" type="button" disabled={!selectedRequestIds.length} onClick={() => handleBatchStatusUpdate('em_rota')}>
+                    Marcar em rota
+                  </button>
+                  <button className="cta ghost" type="button" disabled={!selectedRequestIds.length} onClick={() => handleBatchStatusUpdate('concluida')}>
+                    Marcar confirmado
+                  </button>
+                </div>
+                <label className="sort-select">
+                  <span>Ordenar por</span>
+                  <select value={requestSort} onChange={(event) => setRequestSort(event.target.value as 'recent' | 'status' | 'destination')}>
+                    <option value="recent">Mais recentes</option>
+                    <option value="status">Status</option>
+                    <option value="destination">Destino</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
             {operatorView === 'novo' ? (
               <div className="operator-grid">
                 <form className="request-form" onSubmit={handleCreateRequest}>
@@ -516,7 +629,8 @@ function App() {
                   </div>
                   <input placeholder="Nome do paciente" value={requestForm.clientName} onChange={(event) => setRequestForm({ ...requestForm, clientName: event.target.value })} />
                   <input placeholder="Telefone" value={requestForm.phone} onChange={(event) => setRequestForm({ ...requestForm, phone: event.target.value })} />
-                  <input placeholder="Destino" value={requestForm.destination} onChange={(event) => setRequestForm({ ...requestForm, destination: event.target.value })} />
+                  <input placeholder="Cidade de destino" value={requestForm.destination} onChange={(event) => setRequestForm({ ...requestForm, destination: event.target.value })} />
+                  <input placeholder="Hospital / Clínica / Posto" value={requestForm.destinationFacility} onChange={(event) => setRequestForm({ ...requestForm, destinationFacility: event.target.value })} />
                   <div className="input-action">
                     <input placeholder="CEP" value={requestForm.cep} onChange={(event) => setRequestForm({ ...requestForm, cep: formatCep(event.target.value) })} onBlur={(event) => handleLookupCep(event.target.value, (data) => setRequestForm((current) => ({ ...current, street: data.street || current.street, neighborhood: data.neighborhood || current.neighborhood, city: data.city || current.city })))} />
                     <button className="cta ghost" type="button" onClick={() => handleLookupCep(requestForm.cep, (data) => setRequestForm((current) => ({ ...current, street: data.street || current.street, neighborhood: data.neighborhood || current.neighborhood, city: data.city || current.city })))}>
@@ -597,8 +711,11 @@ function App() {
                 <div className="filter-row">
                   <input placeholder="Filtrar por paciente, protocolo ou destino" value={requestFilter} onChange={(event) => setRequestFilter(event.target.value)} />
                 </div>
-                <div className="admin-table">
-                  <div className="admin-row admin-row-head">
+                <div className="admin-table operator-admin-table">
+                  <div className="admin-row admin-row-head operator-row-head">
+                    <label className="table-select">
+                      <input type="checkbox" checked={selectedAll} onChange={handleToggleSelectAll} aria-label="Selecionar todas as solicitações" />
+                    </label>
                     <span>Protocolo</span>
                     <span>Paciente</span>
                     <span>Saída</span>
@@ -606,12 +723,16 @@ function App() {
                     <span>Ação</span>
                   </div>
                   <div className="admin-table-body operator-scroll">
-                    {visibleRequests.length ? (
-                      visibleRequests.map((request) => (
-                        <div className="admin-row" key={request.id}>
+                    {sortedRequests.length ? (
+                      sortedRequests.map((request) => (
+                        <div className={`admin-row operator-row ${selectedRequestIds.includes(request.id) ? 'request-selected' : ''}`} key={request.id}>
+                          <label className="table-select">
+                            <input type="checkbox" checked={selectedRequestIds.includes(request.id)} onChange={() => toggleSelectedRequest(request.id)} aria-label={`Selecionar solicitação ${request.protocol}`} />
+                          </label>
                           <strong>{request.protocol}</strong>
                           <div className="admin-cell">
                             <strong>{request.clientName}</strong>
+                            <small>{request.destinationFacility || request.destination}</small>
                             <small>{formatAddressDisplay(request.boardingPoint, request.boardingCep ?? request.clientCep)}</small>
                           </div>
                           <span>{formatSchedule(request.departureAt)}</span>
@@ -794,7 +915,7 @@ function App() {
                   <article className={`manager-card ${request.id === activeRequestId ? 'request-selected' : ''}`} key={request.id} onClick={() => setActiveRequestId(request.id)}>
                     <strong>{request.protocol}</strong>
                     <p>{request.clientName}</p>
-                    <small>{request.destination}</small>
+                    <small>{request.destinationFacility || request.destination}</small>
                   </article>
                 ))
               ) : (
@@ -906,7 +1027,7 @@ function App() {
                       <div>
                         <strong>{request.clientName}</strong>
                         <p>{request.destination}</p>
-                        <small>{formatAddressDisplay(request.boardingPoint, request.boardingCep ?? request.clientCep)} · {formatSchedule(request.departureAt)}</small>
+                        <small>{request.destinationFacility || request.destination} · {formatAddressDisplay(request.boardingPoint, request.boardingCep ?? request.clientCep)} · {formatSchedule(request.departureAt)}</small>
                       </div>
                       <div className="request-meta">
                         <span className={`status status-${request.status}`}>{statusLabels[request.status]}</span>
@@ -953,6 +1074,9 @@ function App() {
                     <strong>Destino:</strong> {activeRequest.destination}
                   </p>
                   <p>
+                    <strong>Hospital / Clínica / Posto:</strong> {activeRequest.destinationFacility || 'Não informado'}
+                  </p>
+                  <p>
                     <strong>Acompanhantes / carga:</strong> {activeRequest.companions}
                   </p>
                   <a className="cta" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(buildMapQuery(activeRequest) || activeRequest.boardingPoint)}`} target="_blank" rel="noreferrer">
@@ -977,7 +1101,7 @@ function App() {
                     <div>
                       <strong>{request.protocol}</strong>
                       <p>{request.clientName} · {request.destination}</p>
-                      <small>Embarque: {formatAddressDisplay(request.boardingPoint, request.boardingCep ?? request.clientCep)} · Saída: {formatSchedule(request.departureAt)}</small>
+                      <small>{request.destinationFacility || request.destination} · Embarque: {formatAddressDisplay(request.boardingPoint, request.boardingCep ?? request.clientCep)} · Saída: {formatSchedule(request.departureAt)}</small>
                     </div>
                     <div className="request-meta">
                       <span className={`status status-${request.status}`}>{statusLabels[request.status]}</span>
