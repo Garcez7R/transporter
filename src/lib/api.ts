@@ -120,6 +120,16 @@ export async function updateRequest(
   );
 }
 
+export async function deleteRequest(id: string, token?: string) {
+  return request<ApiResponse<{ ok: boolean }>>(
+    `/api/requests/${id}`,
+    {
+      method: 'DELETE'
+    },
+    token
+  );
+}
+
 export async function getRequest(id: string, token?: string) {
   return request<ApiResponse<{ item: TripRequest }>>(`/api/requests/${id}`, undefined, token);
 }

@@ -58,8 +58,8 @@ export async function onRequestPost({ request, env }: { request: Request; env: E
     return json({ ok: false, error: 'Sem permissão.' }, { status: 403 });
   }
 
-  if (!body.name || !body.document) {
-    return json({ ok: false, error: 'Nome e CPF são obrigatórios.' }, { status: 400 });
+  if (!body.name || !body.document || !body.cep || !body.address) {
+    return json({ ok: false, error: 'Nome, CPF, CEP e endereço são obrigatórios.' }, { status: 400 });
   }
 
   const document = normalizeDocument(body.document);

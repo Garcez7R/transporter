@@ -460,6 +460,42 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
   return json({ ok: true });
 }
 
+export async function onRequestDelete({ request, env, params }: { request: Request; env: Env; params: { id: string } }) {
+  const session = await getSession(request, env);
+  const requestId = resolveRequestId(params);
+
+  if (!session) {
+    return json({ ok: false, error: 'Sessão inválida.' }, { status: 401 });
+  }
+
+  if (!env.DB) {
+    return json({ ok: true });
+  }
+
+  if (!['operador', 'administrador'].includes(session.role)) {
+    return json({ ok: false, error: 'Sem permissão para excluir.' }, { status: 403 });
+  }
+
+  if (!requestId) {
+    return json({ ok: false, error: 'ID inválido.' }, { status: 400 });
+  }
+
+  await env.DB.prepare('DELETE FROM messages WHERE trip_request_id = ?').bind(requestId).run();
+  await env.DB.prepare('DELETE FROM status_history WHERE trip_request_id = ?').bind(requestId).run();
+  await env.DB.prepare('DELETE FROM trip_requests WHERE id = ?').bind(requestId).run();
+
+  await logAudit(env, {
+    entityType: 'trip_request',
+    action: 'request.deleted',
+    details: `Solicitação ${requestId} excluída.`,
+    actorRole: session.role,
+    actorName: session.name,
+    actorId: session.user_id
+  });
+
+  return json({ ok: true });
+}
+
 async function resolveDriverId(env: Env, value: string) {
   const numeric = Number(value);
   if (Number.isFinite(numeric) && numeric > 0) return numeric;

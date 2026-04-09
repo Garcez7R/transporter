@@ -24,6 +24,16 @@ export function formatCep(value: string) {
   return `${digits.slice(0, 5)}-${digits.slice(5, 8)}`;
 }
 
+export function normalizeTime(value: string) {
+  return value.replace(/\D/g, '').slice(0, 4);
+}
+
+export function formatTime(value: string) {
+  const digits = normalizeTime(value);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}:${digits.slice(2, 4)}`;
+}
+
 export function readJson<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') return fallback;
 

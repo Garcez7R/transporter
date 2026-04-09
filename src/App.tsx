@@ -6,6 +6,7 @@ import {
   createClient,
   createRequest,
   createUser,
+  deleteRequest,
   listClients,
   listRequests,
   listUsers,
@@ -16,7 +17,7 @@ import {
   updateClient,
   updateRequest
 } from './lib/api';
-import { formatCep, formatDocument, normalizeDocument, readJson, removeItem, SESSION_KEY, currentStamp, writeJson } from './lib/persistence';
+import { formatCep, formatDocument, formatTime, normalizeDocument, readJson, removeItem, SESSION_KEY, currentStamp, writeJson } from './lib/persistence';
 import type { AccessRole, ClientFormState, RequestFormState, RequestStatus, SessionUser, TripRequest, UserFormState } from './types';
 import type { ClientRow, UserRow } from './lib/api';
 
@@ -67,6 +68,16 @@ const roleDescriptions: Record<AccessRole, string> = {
   administrador: 'Governança global e acesso irrestrito.'
 };
 
+const statusLabels: Record<RequestStatus, string> = {
+  rascunho: 'Rascunho',
+  em_atendimento: 'Em atendimento',
+  aguardando_distribuicao: 'Aguardando distribuição',
+  agendada: 'Agendada',
+  em_rota: 'Em rota',
+  concluida: 'Concluída',
+  cancelada: 'Cancelada'
+};
+
 function App() {
   const [session, setSession] = useState<SessionUser | null>(() => readJson<SessionUser | null>(SESSION_KEY, null));
   const [requests, setRequests] = useState<TripRequest[]>([]);
@@ -81,6 +92,9 @@ function App() {
   const [activeRequestId, setActiveRequestId] = useState('');
   const [requestFilter, setRequestFilter] = useState('');
   const [requestForm, setRequestForm] = useState<RequestFormState>(defaultRequestForm);
+  const [requestCompanion, setRequestCompanion] = useState<'nao' | 'sim'>('nao');
+  const [requestCompanionName, setRequestCompanionName] = useState('');
+  const [requestCompanionCpf, setRequestCompanionCpf] = useState('');
   const [messageDraft, setMessageDraft] = useState('');
   const [users, setUsers] = useState<UserRow[]>([]);
   const [userRoleFilter, setUserRoleFilter] = useState<AccessRole | 'todos'>('todos');
@@ -97,6 +111,7 @@ function App() {
   const [operatorView, setOperatorView] = useState<'novo' | 'recentes'>('novo');
   const [showInlinePatient, setShowInlinePatient] = useState(false);
   const [cpfLookupStatus, setCpfLookupStatus] = useState<'idle' | 'found' | 'missing'>('idle');
+  const [showEditModal, setShowEditModal] = useState(false);
   const [tripForm, setTripForm] = useState({
     destination: '',
     boardingPoint: '',
@@ -109,6 +124,9 @@ function App() {
     vehicle: '',
     phoneVisible: false
   });
+  const [tripCompanion, setTripCompanion] = useState<'nao' | 'sim'>('nao');
+  const [tripCompanionName, setTripCompanionName] = useState('');
+  const [tripCompanionCpf, setTripCompanionCpf] = useState('');
   const [userForm, setUserForm] = useState<UserFormState>({
     name: '',
     document: '',
@@ -121,6 +139,22 @@ function App() {
   const [activeNav, setActiveNav] = useState('visao');
 
   const patientView = !session || session.role === 'cliente';
+
+  function buildCompanionPayload(mode: 'nao' | 'sim', name: string, cpf: string) {
+    if (mode === 'nao') return 'Não';
+    const trimmedName = name.trim();
+    const trimmedCpf = formatDocument(cpf.trim());
+    if (!trimmedName || !trimmedCpf) return 'Não';
+    return `Sim: ${trimmedName} (${trimmedCpf})`;
+  }
+
+  function parseCompanion(value: string) {
+    if (!value) return { mode: 'nao' as const, name: '', cpf: '' };
+    if (!value.toLowerCase().startsWith('sim:')) return { mode: 'nao' as const, name: '', cpf: '' };
+    const match = value.match(/sim:\s*(.+)\s+\((.+)\)/i);
+    if (!match) return { mode: 'sim' as const, name: '', cpf: '' };
+    return { mode: 'sim' as const, name: match[1].trim(), cpf: match[2].trim() };
+  }
 
   useEffect(() => {
     writeJson(SESSION_KEY, session);
@@ -246,6 +280,10 @@ function App() {
       vehicle: activeRequest.vehicle,
       phoneVisible: Boolean(activeRequest.phoneVisible)
     });
+    const parsed = parseCompanion(activeRequest.companions ?? '');
+    setTripCompanion(parsed.mode);
+    setTripCompanionName(parsed.name);
+    setTripCompanionCpf(parsed.cpf);
   }, [activeRequest?.id]);
 
   async function refreshRequests(token = session?.token) {
@@ -338,9 +376,23 @@ function App() {
     if (!session?.token || session.role !== 'operador') return;
 
     try {
-      const response = await createRequest(requestForm, session.token);
+      if (!requestForm.boardingPoint.trim()) {
+        showBanner('error', 'Informe o endereço completo do embarque.');
+        return;
+      }
+      const companionPayload = buildCompanionPayload(requestCompanion, requestCompanionName, requestCompanionCpf);
+      const response = await createRequest(
+        {
+          ...requestForm,
+          companions: companionPayload
+        },
+        session.token
+      );
       const createdId = response.row && 'id' in response.row ? String(response.row.id) : '';
       setRequestForm(defaultRequestForm);
+      setRequestCompanion('nao');
+      setRequestCompanionName('');
+      setRequestCompanionCpf('');
       pushToast('success', 'Solicitação criada com sucesso.');
       await refreshRequests(session.token);
       if (createdId) setActiveRequestId(createdId);
@@ -358,6 +410,17 @@ function App() {
       await refreshRequests(session.token);
     } catch (error) {
       showBanner('error', error instanceof Error ? error.message : 'Não foi possível atualizar a solicitação.');
+    }
+  }
+
+  async function handleDeleteRequest(id: string) {
+    if (!session?.token) return;
+    try {
+      await deleteRequest(id, session.token);
+      pushToast('success', 'Solicitação excluída.');
+      await refreshRequests(session.token);
+    } catch (error) {
+      showBanner('error', error instanceof Error ? error.message : 'Não foi possível excluir a solicitação.');
     }
   }
 
@@ -426,6 +489,10 @@ function App() {
     if (!session?.token) return;
 
     try {
+      if (!clientForm.cep.trim() || !clientForm.address.trim()) {
+        showBanner('error', 'CEP e endereço completo são obrigatórios.');
+        return;
+      }
       await createClient(
         {
           name: clientForm.name.trim(),
@@ -449,6 +516,10 @@ function App() {
     if (!session?.token) return;
 
     try {
+      if (!clientForm.cep.trim() || !clientForm.address.trim()) {
+        showBanner('error', 'CEP e endereço completo são obrigatórios.');
+        return;
+      }
       await createClient(
         {
           name: clientForm.name.trim(),
@@ -541,13 +612,14 @@ function App() {
     event.preventDefault();
     if (!activeRequest || !session?.token) return;
 
+    const companionPayload = buildCompanionPayload(tripCompanion, tripCompanionName, tripCompanionCpf);
     await patchRequest(activeRequest.id, {
       destination: tripForm.destination,
       boardingPoint: tripForm.boardingPoint,
       departureAt: tripForm.departureAt,
       arrivalEta: tripForm.arrivalEta,
       notes: tripForm.notes,
-      companions: tripForm.companions,
+      companions: companionPayload,
       status: tripForm.status,
       driver: tripForm.driver,
       vehicle: tripForm.vehicle,
@@ -1068,10 +1140,45 @@ function App() {
                   <input placeholder="Nome do paciente" value={requestForm.clientName} onChange={(event) => setRequestForm({ ...requestForm, clientName: event.target.value })} />
                   <input placeholder="Telefone" value={requestForm.phone} onChange={(event) => setRequestForm({ ...requestForm, phone: event.target.value })} />
                   <input placeholder="Destino" value={requestForm.destination} onChange={(event) => setRequestForm({ ...requestForm, destination: event.target.value })} />
-                  <input placeholder="Local de embarque" value={requestForm.boardingPoint} onChange={(event) => setRequestForm({ ...requestForm, boardingPoint: event.target.value })} />
-                  <input placeholder="Saída prevista" value={requestForm.departureAt} onChange={(event) => setRequestForm({ ...requestForm, departureAt: event.target.value })} />
-                  <input placeholder="Chegada prevista" value={requestForm.arrivalEta} onChange={(event) => setRequestForm({ ...requestForm, arrivalEta: event.target.value })} />
-                  <input placeholder="Acompanhantes / carga" value={requestForm.companions} onChange={(event) => setRequestForm({ ...requestForm, companions: event.target.value })} />
+                  <input
+                    placeholder="Endereço completo (obrigatório)"
+                    value={requestForm.boardingPoint}
+                    onChange={(event) => setRequestForm({ ...requestForm, boardingPoint: event.target.value })}
+                  />
+                  <input
+                    placeholder="Saída prevista (HH:MM)"
+                    value={requestForm.departureAt}
+                    onChange={(event) => setRequestForm({ ...requestForm, departureAt: formatTime(event.target.value) })}
+                  />
+                  <input
+                    placeholder="Horário da consulta (HH:MM)"
+                    value={requestForm.arrivalEta}
+                    onChange={(event) => setRequestForm({ ...requestForm, arrivalEta: formatTime(event.target.value) })}
+                  />
+                  <label>
+                    <span>Acompanhante</span>
+                    <select
+                      value={requestCompanion}
+                      onChange={(event) => setRequestCompanion(event.target.value as 'nao' | 'sim')}
+                    >
+                      <option value="nao">não</option>
+                      <option value="sim">sim</option>
+                    </select>
+                  </label>
+                  {requestCompanion === 'sim' ? (
+                    <>
+                      <input
+                        placeholder="Nome do acompanhante"
+                        value={requestCompanionName}
+                        onChange={(event) => setRequestCompanionName(event.target.value)}
+                      />
+                      <input
+                        placeholder="CPF do acompanhante"
+                        value={requestCompanionCpf}
+                        onChange={(event) => setRequestCompanionCpf(formatDocument(event.target.value))}
+                      />
+                    </>
+                  ) : null}
                   <textarea placeholder="Observações" value={requestForm.notes} onChange={(event) => setRequestForm({ ...requestForm, notes: event.target.value })} />
                   <button className="cta" type="submit">
                     Gerar protocolo
@@ -1129,17 +1236,31 @@ function App() {
                           <strong>{request.protocol}</strong>
                           <span>{request.clientName}</span>
                           <span>{request.departureAt}</span>
-                          <span className={`status status-${request.status}`}>{request.status}</span>
-                          <button
-                            className="cta ghost"
-                            type="button"
-                            onClick={() => {
-                              setActiveRequestId(request.id);
-                              setActiveNav('detalhes');
-                            }}
-                          >
-                            Editar
-                          </button>
+                          <span className={`status status-${request.status}`}>{statusLabels[request.status]}</span>
+                          <div className="table-actions">
+                            <button
+                              className="cta ghost"
+                              type="button"
+                              onClick={() => {
+                                setActiveRequestId(request.id);
+                                setActiveNav('detalhes');
+                                setShowEditModal(true);
+                              }}
+                            >
+                              Editar
+                            </button>
+                            <button
+                              className="cta ghost danger"
+                              type="button"
+                              onClick={() => {
+                                if (window.confirm('Deseja excluir esta solicitação?')) {
+                                  handleDeleteRequest(request.id);
+                                }
+                              }}
+                            >
+                              Excluir
+                            </button>
+                          </div>
                         </div>
                       ))
                     ) : (
@@ -1281,7 +1402,7 @@ function App() {
                     <strong>{activeRequest.clientName}</strong>
                     <p>{activeRequest.protocol}</p>
                   </div>
-                  <span className={`status status-${activeRequest.status}`}>{activeRequest.status}</span>
+                  <span className={`status status-${activeRequest.status}`}>{statusLabels[activeRequest.status]}</span>
                 </div>
                 <div className="assignment-grid">
                   <label>
@@ -1294,22 +1415,22 @@ function App() {
                   </label>
                   <label>
                     <span>Saída</span>
-                    <input value={activeRequest.departureAt} onChange={(event) => patchRequest(activeRequest.id, { departureAt: event.target.value })} />
+                    <input value={activeRequest.departureAt} onChange={(event) => patchRequest(activeRequest.id, { departureAt: formatTime(event.target.value) })} />
                   </label>
                   <label>
-                    <span>Chegada prevista</span>
-                    <input value={activeRequest.arrivalEta} onChange={(event) => patchRequest(activeRequest.id, { arrivalEta: event.target.value })} />
+                    <span>Horário da consulta</span>
+                    <input value={activeRequest.arrivalEta} onChange={(event) => patchRequest(activeRequest.id, { arrivalEta: formatTime(event.target.value) })} />
                   </label>
                   <label>
                     <span>Status</span>
                     <select value={activeRequest.status} onChange={(event) => patchRequest(activeRequest.id, { status: event.target.value as RequestStatus })}>
-                      <option value="rascunho">rascunho</option>
-                      <option value="em_atendimento">em_atendimento</option>
-                      <option value="aguardando_distribuicao">aguardando_distribuicao</option>
-                      <option value="agendada">agendada</option>
-                      <option value="em_rota">em_rota</option>
-                      <option value="concluida">concluida</option>
-                      <option value="cancelada">cancelada</option>
+                      <option value="rascunho">Rascunho</option>
+                      <option value="em_atendimento">Em atendimento</option>
+                      <option value="aguardando_distribuicao">Aguardando distribuição</option>
+                      <option value="agendada">Agendada</option>
+                      <option value="em_rota">Em rota</option>
+                      <option value="concluida">Concluída</option>
+                      <option value="cancelada">Cancelada</option>
                     </select>
                   </label>
                   <label>
@@ -1348,7 +1469,7 @@ function App() {
                         </small>
                       </div>
                       <div className="request-meta">
-                        <span className={`status status-${request.status}`}>{request.status}</span>
+                        <span className={`status status-${request.status}`}>{statusLabels[request.status]}</span>
                         <small>{request.vehicle || 'Sem veículo'}</small>
                       </div>
                     </article>
@@ -1412,7 +1533,7 @@ function App() {
                       </small>
                     </div>
                     <div className="request-meta">
-                      <span className={`status status-${request.status}`}>{request.status}</span>
+                      <span className={`status status-${request.status}`}>{statusLabels[request.status]}</span>
                       <small>{request.driver || 'Sem motorista'}</small>
                       <small>{request.vehicle || 'Sem veículo'}</small>
                     </div>
@@ -1429,7 +1550,7 @@ function App() {
           </section>
         )}
 
-        {activeRequest ? (
+        {activeRequest && (session.role !== 'operador' || operatorView === 'recentes') ? (
           <section className="grid two-col" id="detalhes">
             <article className="glass-card panel-card">
               <div className="section-head">
@@ -1448,7 +1569,7 @@ function App() {
                   </div>
                   <div>
                     <span>Status</span>
-                    <strong className={`status status-${activeRequest.status}`}>{activeRequest.status}</strong>
+                    <strong className={`status status-${activeRequest.status}`}>{statusLabels[activeRequest.status]}</strong>
                   </div>
                 </div>
               ) : (
@@ -1472,25 +1593,44 @@ function App() {
                     onChange={(event) => setTripForm({ ...tripForm, destination: event.target.value })}
                   />
                   <input
-                    placeholder="Local de embarque"
+                    placeholder="Endereço completo"
                     value={tripForm.boardingPoint}
                     onChange={(event) => setTripForm({ ...tripForm, boardingPoint: event.target.value })}
                   />
                   <input
-                    placeholder="Saída prevista"
+                    placeholder="Saída prevista (HH:MM)"
                     value={tripForm.departureAt}
-                    onChange={(event) => setTripForm({ ...tripForm, departureAt: event.target.value })}
+                    onChange={(event) => setTripForm({ ...tripForm, departureAt: formatTime(event.target.value) })}
                   />
                   <input
-                    placeholder="Chegada prevista"
+                    placeholder="Horário da consulta (HH:MM)"
                     value={tripForm.arrivalEta}
-                    onChange={(event) => setTripForm({ ...tripForm, arrivalEta: event.target.value })}
+                    onChange={(event) => setTripForm({ ...tripForm, arrivalEta: formatTime(event.target.value) })}
                   />
-                  <input
-                    placeholder="Acompanhantes / carga"
-                    value={tripForm.companions}
-                    onChange={(event) => setTripForm({ ...tripForm, companions: event.target.value })}
-                  />
+                  <label>
+                    <span>Acompanhante</span>
+                    <select
+                      value={tripCompanion}
+                      onChange={(event) => setTripCompanion(event.target.value as 'nao' | 'sim')}
+                    >
+                      <option value="nao">não</option>
+                      <option value="sim">sim</option>
+                    </select>
+                  </label>
+                  {tripCompanion === 'sim' ? (
+                    <>
+                      <input
+                        placeholder="Nome do acompanhante"
+                        value={tripCompanionName}
+                        onChange={(event) => setTripCompanionName(event.target.value)}
+                      />
+                      <input
+                        placeholder="CPF do acompanhante"
+                        value={tripCompanionCpf}
+                        onChange={(event) => setTripCompanionCpf(formatDocument(event.target.value))}
+                      />
+                    </>
+                  ) : null}
                   <textarea
                     placeholder="Observações"
                     value={tripForm.notes}
@@ -1502,13 +1642,13 @@ function App() {
                       value={tripForm.status}
                       onChange={(event) => setTripForm({ ...tripForm, status: event.target.value as RequestStatus })}
                     >
-                      <option value="rascunho">rascunho</option>
-                      <option value="em_atendimento">em_atendimento</option>
-                      <option value="aguardando_distribuicao">aguardando_distribuicao</option>
-                      <option value="agendada">agendada</option>
-                      <option value="em_rota">em_rota</option>
-                      <option value="concluida">concluida</option>
-                      <option value="cancelada">cancelada</option>
+                      <option value="rascunho">Rascunho</option>
+                      <option value="em_atendimento">Em atendimento</option>
+                      <option value="aguardando_distribuicao">Aguardando distribuição</option>
+                      <option value="agendada">Agendada</option>
+                      <option value="em_rota">Em rota</option>
+                      <option value="concluida">Concluída</option>
+                      <option value="cancelada">Cancelada</option>
                     </select>
                   </label>
                   {(session?.role === 'gerente' || session?.role === 'administrador') && (
@@ -1548,7 +1688,7 @@ function App() {
                 <div className="section-toolbar">
                   <h2>{session.role === 'cliente' ? 'Comunicação' : 'Histórico e comunicação'}</h2>
                   <button className={`status status-${activeRequest.status} status-pill`} type="button">
-                    {activeRequest.status}
+                    {statusLabels[activeRequest.status]}
                   </button>
                 </div>
               </div>
@@ -1615,6 +1755,96 @@ function App() {
               )}
             </article>
           </section>
+        ) : null}
+
+        {showEditModal && activeRequest ? (
+          <div className="modal-backdrop" role="dialog" aria-modal="true">
+            <div className="modal-card">
+              <div className="section-head">
+                <div className="section-toolbar">
+                  <h2>Editar solicitação</h2>
+                  <button className="cta ghost" type="button" onClick={() => setShowEditModal(false)}>
+                    Fechar
+                  </button>
+                </div>
+              </div>
+              <form className="request-form" onSubmit={async (event) => {
+                event.preventDefault();
+                await handleSaveTrip(event);
+                setShowEditModal(false);
+              }}>
+                <input
+                  placeholder="Destino"
+                  value={tripForm.destination}
+                  onChange={(event) => setTripForm({ ...tripForm, destination: event.target.value })}
+                />
+                <input
+                  placeholder="Endereço completo"
+                  value={tripForm.boardingPoint}
+                  onChange={(event) => setTripForm({ ...tripForm, boardingPoint: event.target.value })}
+                />
+                <input
+                  placeholder="Saída prevista (HH:MM)"
+                  value={tripForm.departureAt}
+                  onChange={(event) => setTripForm({ ...tripForm, departureAt: formatTime(event.target.value) })}
+                />
+                <input
+                  placeholder="Horário da consulta (HH:MM)"
+                  value={tripForm.arrivalEta}
+                  onChange={(event) => setTripForm({ ...tripForm, arrivalEta: formatTime(event.target.value) })}
+                />
+                <label>
+                  <span>Acompanhante</span>
+                  <select value={tripCompanion} onChange={(event) => setTripCompanion(event.target.value as 'nao' | 'sim')}>
+                    <option value="nao">não</option>
+                    <option value="sim">sim</option>
+                  </select>
+                </label>
+                {tripCompanion === 'sim' ? (
+                  <>
+                    <input
+                      placeholder="Nome do acompanhante"
+                      value={tripCompanionName}
+                      onChange={(event) => setTripCompanionName(event.target.value)}
+                    />
+                    <input
+                      placeholder="CPF do acompanhante"
+                      value={tripCompanionCpf}
+                      onChange={(event) => setTripCompanionCpf(formatDocument(event.target.value))}
+                    />
+                  </>
+                ) : null}
+                <textarea
+                  placeholder="Observações"
+                  value={tripForm.notes}
+                  onChange={(event) => setTripForm({ ...tripForm, notes: event.target.value })}
+                />
+                <label>
+                  <span>Status</span>
+                  <select
+                    value={tripForm.status}
+                    onChange={(event) => setTripForm({ ...tripForm, status: event.target.value as RequestStatus })}
+                  >
+                    <option value="rascunho">Rascunho</option>
+                    <option value="em_atendimento">Em atendimento</option>
+                    <option value="aguardando_distribuicao">Aguardando distribuição</option>
+                    <option value="agendada">Agendada</option>
+                    <option value="em_rota">Em rota</option>
+                    <option value="concluida">Concluída</option>
+                    <option value="cancelada">Cancelada</option>
+                  </select>
+                </label>
+                <div className="form-actions">
+                  <button className="cta ghost" type="button" onClick={() => setShowEditModal(false)}>
+                    Cancelar
+                  </button>
+                  <button className="cta" type="submit">
+                    Salvar alterações
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         ) : null}
 
         {canViewUsers ? (
