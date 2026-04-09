@@ -941,6 +941,94 @@ h1 {
   box-shadow: 0 16px 32px rgba(28, 35, 40, 0.14);
 }
 
+:root[data-theme='light'] body::before {
+  background-image:
+    linear-gradient(rgba(28, 35, 40, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(28, 35, 40, 0.04) 1px, transparent 1px);
+  opacity: 0.12;
+}
+
+:root[data-theme='light'] body::after {
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(28, 35, 40, 0.02) 0 1px,
+    transparent 1px 6px
+  );
+  opacity: 0.08;
+}
+
+:root[data-theme='light'] .glass-card,
+:root[data-theme='light'] .admin-card,
+:root[data-theme='light'] .manager-card,
+:root[data-theme='light'] .request-row,
+:root[data-theme='light'] .fleet-row,
+:root[data-theme='light'] .saas-sidebar-panel,
+:root[data-theme='light'] .saas-module-card,
+:root[data-theme='light'] .saas-sidebar-session,
+:root[data-theme='light'] .saas-action-item,
+:root[data-theme='light'] .demo-card,
+:root[data-theme='light'] .empty-state,
+:root[data-theme='light'] .api-grid div,
+:root[data-theme='light'] .admin-row,
+:root[data-theme='light'] .saas-nav-link {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(28, 35, 40, 0.12);
+}
+
+:root[data-theme='light'] .glass-card {
+  box-shadow: 0 24px 56px rgba(28, 35, 40, 0.08);
+}
+
+:root[data-theme='light'] .saas-sidebar-panel {
+  background: rgba(255, 255, 255, 0.96);
+}
+
+:root[data-theme='light'] .saas-module-card,
+:root[data-theme='light'] .saas-sidebar-session,
+:root[data-theme='light'] .saas-action-item,
+:root[data-theme='light'] .demo-card,
+:root[data-theme='light'] .empty-state {
+  background: rgba(255, 255, 255, 0.88);
+}
+
+:root[data-theme='light'] .saas-nav-link:hover,
+:root[data-theme='light'] .saas-nav-link:focus-visible {
+  border-color: rgba(22, 133, 83, 0.22);
+  box-shadow: 0 12px 24px rgba(28, 35, 40, 0.08);
+}
+
+:root[data-theme='light'] .saas-nav-link.active {
+  border-color: rgba(22, 133, 83, 0.45);
+  background: rgba(22, 133, 83, 0.08);
+}
+
+:root[data-theme='light'] .request-row:hover,
+:root[data-theme='light'] .admin-row:hover,
+:root[data-theme='light'] .manager-card:hover,
+:root[data-theme='light'] .demo-card:hover {
+  background: rgba(28, 35, 40, 0.04);
+}
+
+:root[data-theme='light'] .request-selected {
+  outline: 1px solid rgba(22, 133, 83, 0.35);
+  background: rgba(22, 133, 83, 0.08);
+}
+
+:root[data-theme='light'] input,
+:root[data-theme='light'] textarea,
+:root[data-theme='light'] select {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+:root[data-theme='light'] input::placeholder,
+:root[data-theme='light'] textarea::placeholder {
+  color: rgba(28, 35, 40, 0.4);
+}
+
+:root[data-theme='light'] .empty-state {
+  border-color: rgba(28, 35, 40, 0.12);
+}
+
 .topbar-actions {
   display: inline-flex;
   align-items: center;
