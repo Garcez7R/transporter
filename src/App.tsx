@@ -1082,7 +1082,7 @@ function App() {
             </div>
 
             {activeRequest ? (
-              <div className="assignment-panel">
+              <form className="assignment-panel" onSubmit={handleSaveTrip}>
                 <div className="assignment-head">
                   <div>
                     <strong>{activeRequest.clientName}</strong>
@@ -1118,29 +1118,39 @@ function App() {
                   </label>
                   <label>
                     <span>Motorista</span>
-                    <input value={activeRequest.driver} onChange={(event) => patchRequest(activeRequest.id, { driver: event.target.value })} />
+                    <input list="drivers-list" value={tripForm.driver} onChange={(event) => setTripForm({ ...tripForm, driver: event.target.value })} placeholder="Selecione ou digite" />
+                    <datalist id="drivers-list">
+                      {availableDrivers.map((driver) => (
+                        <option key={driver} value={driver} />
+                      ))}
+                    </datalist>
                   </label>
                   <label>
                     <span>Veículo</span>
-                    <input value={activeRequest.vehicle} onChange={(event) => patchRequest(activeRequest.id, { vehicle: event.target.value })} />
+                    <input list="vehicles-list" value={tripForm.vehicle} onChange={(event) => setTripForm({ ...tripForm, vehicle: event.target.value })} placeholder="Selecione ou digite" />
+                    <datalist id="vehicles-list">
+                      {availableVehicles.map((vehicle) => (
+                        <option key={vehicle} value={vehicle} />
+                      ))}
+                    </datalist>
                   </label>
                   <label>
                     <span>Data e hora da viagem</span>
                     <div className="input-group">
-                      <input type="date" value={splitDateTime(activeRequest.departureAt).date} onChange={(event) => patchRequest(activeRequest.id, { departureAt: buildDateTime(event.target.value, splitDateTime(activeRequest.departureAt).time) })} />
-                      <input type="time" value={splitDateTime(activeRequest.departureAt).time} onChange={(event) => patchRequest(activeRequest.id, { departureAt: buildDateTime(splitDateTime(activeRequest.departureAt).date, formatTime(event.target.value)) })} />
+                      <input type="date" value={tripDate} onChange={(event) => setTripDate(event.target.value)} />
+                      <input type="time" value={tripTime} onChange={(event) => setTripTime(formatTime(event.target.value))} />
                     </div>
                   </label>
                   <label>
                     <span>Data e hora da consulta</span>
                     <div className="input-group">
-                      <input type="date" value={splitDateTime(activeRequest.arrivalEta).date} onChange={(event) => patchRequest(activeRequest.id, { arrivalEta: buildDateTime(event.target.value, splitDateTime(activeRequest.arrivalEta).time) })} />
-                      <input type="time" value={splitDateTime(activeRequest.arrivalEta).time} onChange={(event) => patchRequest(activeRequest.id, { arrivalEta: buildDateTime(splitDateTime(activeRequest.arrivalEta).date, formatTime(event.target.value)) })} />
+                      <input type="date" value={tripConsultDate} onChange={(event) => setTripConsultDate(event.target.value)} />
+                      <input type="time" value={tripConsultTime} onChange={(event) => setTripConsultTime(formatTime(event.target.value))} />
                     </div>
                   </label>
                   <label>
                     <span>Status</span>
-                    <select value={activeRequest.status} onChange={(event) => patchRequest(activeRequest.id, { status: event.target.value as RequestStatus })}>
+                    <select value={tripForm.status} onChange={(event) => setTripForm({ ...tripForm, status: event.target.value as RequestStatus })}>
                       <option value="rascunho">Rascunho</option>
                       <option value="em_atendimento">Em atendimento</option>
                       <option value="aguardando_distribuicao">Aguardando distribuição</option>
@@ -1152,7 +1162,7 @@ function App() {
                   </label>
                   <label>
                     <span>Telefone visível</span>
-                    <select value={activeRequest.phoneVisible ? 'sim' : 'nao'} onChange={(event) => patchRequest(activeRequest.id, { phoneVisible: event.target.value === 'sim' })}>
+                    <select value={tripForm.phoneVisible ? 'sim' : 'nao'} onChange={(event) => setTripForm({ ...tripForm, phoneVisible: event.target.value === 'sim' })}>
                       <option value="sim">sim</option>
                       <option value="nao">nao</option>
                     </select>
@@ -1160,9 +1170,29 @@ function App() {
                 </div>
                 <label className="full-width">
                   <span>Observações</span>
-                  <textarea value={activeRequest.notes} onChange={(event) => patchRequest(activeRequest.id, { notes: event.target.value })} />
+                  <textarea value={tripForm.notes} onChange={(event) => setTripForm({ ...tripForm, notes: event.target.value })} />
                 </label>
-              </div>
+                <div className="form-actions assignment-actions">
+                  <button className="cta" type="submit">
+                    Salvar ajustes
+                  </button>
+                  {activeRequest.status !== 'agendada' && (
+                    <button className="cta ghost" type="button" onClick={async () => { await patchRequest(activeRequest.id, { status: 'agendada' }); showBanner('success', 'Viagem agendada com sucesso.'); }}>
+                      Agendar viagem
+                    </button>
+                  )}
+                  {activeRequest.status === 'agendada' && (
+                    <button className="cta ghost" type="button" onClick={async () => { await patchRequest(activeRequest.id, { status: 'em_rota' }); showBanner('success', 'Viagem iniciada.'); }}>
+                      Iniciar rota
+                    </button>
+                  )}
+                  {activeRequest.status === 'em_rota' && (
+                    <button className="cta ghost" type="button" onClick={async () => { await patchRequest(activeRequest.id, { status: 'concluida' }); showBanner('success', 'Viagem marcada como concluída.'); }}>
+                      Marcar concluída
+                    </button>
+                  )}
+                </div>
+              </form>
             ) : null}
           </section>
         )}
