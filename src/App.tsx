@@ -203,7 +203,7 @@ function App() {
   const { users, userRoleFilter, setUserRoleFilter, userForm, setUserForm, handleCreateUser, handleResetUserPin } = usersHook;
 
   const [activeNav, setActiveNav] = useState('visao');
-  const [operatorView, setOperatorView] = useState<'dashboard' | 'novo' | 'recentes' | 'pacientes' | 'gps' | 'monitoramento' | 'configuracoes'>('dashboard');
+  const [operatorView, setOperatorView] = useState<'dashboard' | 'novo' | 'recentes' | 'pacientes' | 'gps' | 'monitoramento' | 'configuracoes'>('novo');
   const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>([]);
   const [requestSort, setRequestSort] = useState<'recent' | 'status' | 'destination'>('recent');
 
@@ -605,9 +605,6 @@ function App() {
               <div className="section-toolbar">
                 <h2>Solicitações</h2>
                 <div className="toolbar-actions">
-                  <button className={`cta ghost ${operatorView === 'dashboard' ? 'active' : ''}`} type="button" onClick={() => { setOperatorView('dashboard'); setActiveNav('solicitacoes'); }}>
-                    📊 Dashboard
-                  </button>
                   <button className={`cta ghost ${operatorView === 'novo' ? 'active' : ''}`} type="button" onClick={() => { setOperatorView('novo'); setActiveNav('solicitacoes'); }}>
                     Nova solicitação
                   </button>
@@ -617,8 +614,6 @@ function App() {
                   <button className={`cta ghost ${operatorView === 'pacientes' ? 'active' : ''}`} type="button" onClick={() => { setOperatorView('pacientes'); setActiveNav('solicitacoes'); }}>
                     Pacientes
                   </button>
-                  <button className={`cta ghost ${operatorView === 'gps' ? 'active' : ''}`} type="button" onClick={() => { setOperatorView('gps'); setActiveNav('solicitacoes'); }}>
-                    📍 GPS 
                   <button className={`cta ghost ${operatorView === 'monitoramento' ? 'active' : ''}`} type="button" onClick={() => { setOperatorView('monitoramento'); setActiveNav('solicitacoes'); }}>
                     📊 Monitoramento
                   </button>
@@ -626,16 +621,13 @@ function App() {
                     <button className={`cta ghost ${operatorView === 'configuracoes' ? 'active' : ''}`} type="button" onClick={() => { setOperatorView('configuracoes'); setActiveNav('solicitacoes'); }}>
                       ⚙️ Configurações
                     </button>
-                  )}Tracking
-                  </button>
+                  )}
                 </div>
               </div>
             </div>
 
 
-            {operatorView === 'dashboard' ? (
-              <Dashboard requests={requests} />
-            ) : operatorView === 'novo' ? (
+            {operatorView === 'novo' ? (
               <div className="operator-grid">
                 <form className="request-form" onSubmit={handleCreateRequest}>
                   <div className="input-action">
@@ -838,22 +830,6 @@ function App() {
                   </div>
                 </div>
               </>
-            ) : operatorView === 'gps' ? (
-              activeRequest ? (
-                <GPSTracking
-                  request={activeRequest}
-                  onLocationUpdate={(location) => {
-                    // Handle location updates - could integrate with backend
-                    console.log('Location update:', location);
-                  }}
-                />
-              ) : (
-                <div className="empty-state">
-                  <div className="empty-icon"></div>
-                  <strong>Selecione uma solicitação</strong>
-                  <p>Para visualizar o rastreamento GPS, primeiro selecione uma solicitação ativa.</p>
-                </div>
-              )
             ) : operatorView === 'monitoramento' ? (
               <MonitoringDashboard
                 userRole={session.role}
