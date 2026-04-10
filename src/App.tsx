@@ -319,15 +319,6 @@ function App() {
     }
   }
 
-  function handleOperatorQuickAction(action: 'novo' | 'recentes') {
-    setActiveNav('solicitacoes');
-    if (action === 'novo') {
-      setOperatorView('novo');
-    } else if (action === 'recentes') {
-      setOperatorView('recentes');
-    }
-  }
-
   async function handleInstallApp() {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
@@ -553,7 +544,6 @@ function App() {
           internalNavItems={internalNavItems}
           activeNav={activeNav}
           onNavItemClick={handleNavItemClick}
-          onOperatorQuickAction={handleOperatorQuickAction}
           visibleRequestsCount={visibleRequests.length}
           pendingToday={pendingToday}
           unreadMessages={unreadMessages}
@@ -675,7 +665,22 @@ function App() {
               <p className="eyebrow">Atendimento</p>
               <div className="section-toolbar">
                 <h2>Solicitações</h2>
-                <p className="section-note">Use o menu lateral para navegação principal. Aqui você gera novas solicitações e acompanha o histórico.</p>
+                <div className="toolbar-actions">
+                  <button
+                    className={`cta ghost ${operatorView === 'novo' ? 'active' : ''}`}
+                    type="button"
+                    onClick={() => setOperatorView('novo')}
+                  >
+                    + Nova solicitação
+                  </button>
+                  <button
+                    className={`cta ghost ${operatorView === 'recentes' ? 'active' : ''}`}
+                    type="button"
+                    onClick={() => setOperatorView('recentes')}
+                  >
+                    Solicitações recentes
+                  </button>
+                </div>
               </div>
             </div>
 
