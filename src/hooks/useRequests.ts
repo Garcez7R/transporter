@@ -14,6 +14,17 @@ export type UseRequestsResult = {
   setActiveRequestId: (id: string) => void;
   requestFilter: string;
   setRequestFilter: (value: string) => void;
+  // Advanced filters
+  advancedFilters: {
+    dateRange: { start: Date | null; end: Date | null };
+    statuses: RequestStatus[];
+    location: string;
+    driver: string;
+    vehicle: string;
+  };
+  setAdvancedFilters: (filters: UseRequestsResult['advancedFilters']) => void;
+  availableDrivers: string[];
+  availableVehicles: string[];
   requestForm: RequestFormState;
   setRequestForm: Dispatch<SetStateAction<RequestFormState>>;
   requestCompanion: 'nao' | 'sim';
@@ -95,6 +106,14 @@ export function useRequests(session: SessionUser | null, showBanner: (type: Bann
   const [requests, setRequests] = useState<TripRequest[]>([]);
   const [activeRequestId, setActiveRequestId] = useState('');
   const [requestFilter, setRequestFilter] = useState('');
+  // Advanced filters state
+  const [advancedFilters, setAdvancedFilters] = useState<UseRequestsResult['advancedFilters']>({
+    dateRange: { start: null, end: null },
+    statuses: [],
+    location: '',
+    driver: '',
+    vehicle: ''
+  });
   const [requestForm, setRequestForm] = useState<RequestFormState>(defaultRequestForm);
   const [requestCompanion, setRequestCompanion] = useState<'nao' | 'sim'>('nao');
   const [requestCompanionName, setRequestCompanionName] = useState('');
@@ -130,7 +149,61 @@ export function useRequests(session: SessionUser | null, showBanner: (type: Bann
   const [managerNeighborhood, setManagerNeighborhood] = useState('');
   const [managerCity, setManagerCity] = useState('');
 
-  const visibleRequests = useMemo(() => filteredRequests(requests, session, requestFilter), [requests, session, requestFilter]);
+  const visibleRequests = useMemo(() => {
+    let filtered = filteredRequests(requests, session, requestFilter);
+
+    // Apply advanced filters
+    if (advancedFilters.dateRange.start || advancedFilters.dateRange.end) {
+      filtered = filtered.filter(request => {
+        const requestDate = new Date(request.departureAt);
+        if (advancedFilters.dateRange.start && requestDate < advancedFilters.dateRange.start) return false;
+        if (advancedFilters.dateRange.end && requestDate > advancedFilters.dateRange.end) return false;
+        return true;
+      });
+    }
+
+    if (advancedFilters.statuses.length > 0) {
+      filtered = filtered.filter(request => advancedFilters.statuses.includes(request.status));
+    }
+
+    if (advancedFilters.location) {
+      const locationFilter = advancedFilters.location.toLowerCase();
+      filtered = filtered.filter(request =>
+        [request.destination, request.boardingPoint, request.clientAddress, request.boardingCep, request.clientCep]
+          .join(' ')
+          .toLowerCase()
+          .includes(locationFilter)
+      );
+    }
+
+    if (advancedFilters.driver) {
+      const driverFilter = advancedFilters.driver.toLowerCase();
+      filtered = filtered.filter(request =>
+        request.driver.toLowerCase().includes(driverFilter)
+      );
+    }
+
+    if (advancedFilters.vehicle) {
+      const vehicleFilter = advancedFilters.vehicle.toLowerCase();
+      filtered = filtered.filter(request =>
+        request.vehicle.toLowerCase().includes(vehicleFilter)
+      );
+    }
+
+    return filtered;
+  }, [requests, session, requestFilter, advancedFilters]);
+
+  // Extract available drivers and vehicles for autocomplete
+  const availableDrivers = useMemo(() => {
+    const drivers = new Set(requests.map(r => r.driver).filter(Boolean));
+    return Array.from(drivers).sort();
+  }, [requests]);
+
+  const availableVehicles = useMemo(() => {
+    const vehicles = new Set(requests.map(r => r.vehicle).filter(Boolean));
+    return Array.from(vehicles).sort();
+  }, [requests]);
+
   const activeRequest = visibleRequests.find((request) => request.id === activeRequestId) ?? visibleRequests[0] ?? null;
 
   useEffect(() => {
@@ -376,6 +449,11 @@ export function useRequests(session: SessionUser | null, showBanner: (type: Bann
     setActiveRequestId,
     requestFilter,
     setRequestFilter,
+    // Advanced filters
+    advancedFilters,
+    setAdvancedFilters,
+    availableDrivers,
+    availableVehicles,
     requestForm,
     setRequestForm,
     requestCompanion,

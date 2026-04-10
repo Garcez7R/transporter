@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
+import toast, { Toaster } from 'react-hot-toast';
 import { demoUsers } from './data';
 import { listClients } from './lib/api';
 import { formatCep, formatDocument, normalizeCep, normalizeDocument } from './lib/persistence';
@@ -8,12 +9,21 @@ import { useClients } from './hooks/useClients';
 import { useRequests } from './hooks/useRequests';
 import { useSession } from './hooks/useSession';
 import { useUsers } from './hooks/useUsers';
+import { useNotifications } from './hooks/useNotifications';
 import { ClientModal } from './components/ClientModal';
 import { HeaderSidebar } from './components/HeaderSidebar';
 import { LoginForm } from './components/LoginForm';
 import { NotificationBanner, ToastStack } from './components/NotificationBanner';
 import { RequestDetails } from './components/RequestDetails';
 import { UserTable } from './components/UserTable';
+import { AdvancedFilters } from './components/AdvancedFilters';
+import { Dashboard } from './components/Dashboard';
+import { GPSTracking } from './components/GPSTracking';
+import { Settings } from './components/Settings';
+import { MonitoringDashboard } from './components/MonitoringDashboard';
+import { BulkOperations } from './components/BulkOperations';
+import { ErrorBoundary, LoadingOverlay } from './components/ErrorBoundary';
+import { useOffline } from './hooks/useOffline';
 import { parseAddress } from './lib/utils';
 
 const roleLabels: Record<AccessRole, string> = {
@@ -72,14 +82,37 @@ function App() {
   const requestsHook = useRequests(session, showBanner, pushToast);
   const clientsHook = useClients(session, showBanner, pushToast);
   const usersHook = useUsers(session, showBanner, pushToast);
+  const notifications = useNotifications();
+  const offline = useOffline();
+
+  const NotificationContainer = () => (
+    <Toaster
+      position="top-right"
+      toastOptions={{
+        style: {
+          background: 'var(--surface-elevated)',
+          color: 'var(--text)',
+          border: '1px solid var(--line)',
+          borderRadius: '12px',
+          boxShadow: 'var(--shadow-float)'
+        }
+      }}
+    />
+  );
 
   const {
+    requests,
     visibleRequests,
     activeRequest,
     activeRequestId,
     setActiveRequestId,
     requestFilter,
     setRequestFilter,
+    // Advanced filters
+    advancedFilters,
+    setAdvancedFilters,
+    availableDrivers,
+    availableVehicles,
     requestForm,
     setRequestForm,
     requestCompanion,
@@ -170,7 +203,7 @@ function App() {
   const { users, userRoleFilter, setUserRoleFilter, userForm, setUserForm, handleCreateUser, handleResetUserPin } = usersHook;
 
   const [activeNav, setActiveNav] = useState('visao');
-  const [operatorView, setOperatorView] = useState<'novo' | 'recentes' | 'pacientes'>('novo');
+  const [operatorView, setOperatorView] = useState<'dashboard' | 'novo' | 'recentes' | 'pacientes' | 'gps' | 'monitoramento' | 'configuracoes'>('dashboard');
   const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>([]);
   const [requestSort, setRequestSort] = useState<'recent' | 'status' | 'destination'>('recent');
 
@@ -436,6 +469,7 @@ function App() {
           roleDescription={roleDescriptions.cliente}
         />
         <ToastStack toasts={toasts} />
+        <NotificationContainer />
       </div>
     );
   }
@@ -449,7 +483,9 @@ function App() {
     : 'Nenhuma solicitação registrada no momento.';
 
   return (
-    <div className={`app-shell dashboard-shell ${isPatientSession ? 'patient-view' : ''} ${patientView && patientFontLarge ? 'patient-font-large' : ''} ${!isPatientSession ? 'saas-app-shell internal-shell' : ''}`}>
+    <ErrorBoundary>
+      <LoadingOverlay isVisible={loading} message="Carregando aplicação...">
+        <div className={`app-shell dashboard-shell ${isPatientSession ? 'patient-view' : ''} ${patientView && patientFontLarge ? 'patient-font-large' : ''} ${!isPatientSession ? 'saas-app-shell internal-shell' : ''}`}>
       {!isPatientSession ? (
         <HeaderSidebar
           session={session}
@@ -547,6 +583,20 @@ function App() {
         )}
 
         <NotificationBanner banner={banner} />
+        {!offline.isOnline && (
+          <div className="offline-banner glass-card">
+            <div className="offline-icon">📶</div>
+            <div className="offline-content">
+              <strong>Modo Offline</strong>
+              <small>Algumas funcionalidades podem não estar disponíveis</small>
+            </div>
+            <div className="offline-status">
+              {offline.lastOnline && (
+                <small>Última conexão: {offline.lastOnline.toLocaleTimeString('pt-BR')}</small>
+              )}
+            </div>
+          </div>
+        )}
 
         {session.role === 'operador' && (
           <section className="glass-card panel-card" id="solicitacoes">
@@ -555,6 +605,9 @@ function App() {
               <div className="section-toolbar">
                 <h2>Solicitações</h2>
                 <div className="toolbar-actions">
+                  <button className={`cta ghost ${operatorView === 'dashboard' ? 'active' : ''}`} type="button" onClick={() => { setOperatorView('dashboard'); setActiveNav('solicitacoes'); }}>
+                    📊 Dashboard
+                  </button>
                   <button className={`cta ghost ${operatorView === 'novo' ? 'active' : ''}`} type="button" onClick={() => { setOperatorView('novo'); setActiveNav('solicitacoes'); }}>
                     Nova solicitação
                   </button>
@@ -564,12 +617,25 @@ function App() {
                   <button className={`cta ghost ${operatorView === 'pacientes' ? 'active' : ''}`} type="button" onClick={() => { setOperatorView('pacientes'); setActiveNav('solicitacoes'); }}>
                     Pacientes
                   </button>
+                  <button className={`cta ghost ${operatorView === 'gps' ? 'active' : ''}`} type="button" onClick={() => { setOperatorView('gps'); setActiveNav('solicitacoes'); }}>
+                    📍 GPS 
+                  <button className={`cta ghost ${operatorView === 'monitoramento' ? 'active' : ''}`} type="button" onClick={() => { setOperatorView('monitoramento'); setActiveNav('solicitacoes'); }}>
+                    📊 Monitoramento
+                  </button>
+                  {((session as any).role === 'gerente' || (session as any).role === 'administrador') && (
+                    <button className={`cta ghost ${operatorView === 'configuracoes' ? 'active' : ''}`} type="button" onClick={() => { setOperatorView('configuracoes'); setActiveNav('solicitacoes'); }}>
+                      ⚙️ Configurações
+                    </button>
+                  )}Tracking
+                  </button>
                 </div>
               </div>
             </div>
 
 
-            {operatorView === 'novo' ? (
+            {operatorView === 'dashboard' ? (
+              <Dashboard requests={requests} />
+            ) : operatorView === 'novo' ? (
               <div className="operator-grid">
                 <form className="request-form" onSubmit={handleCreateRequest}>
                   <div className="input-action">
@@ -660,6 +726,11 @@ function App() {
             ) : operatorView === 'recentes' ? (
               <>
                 <div className="table-toolbar">
+                  <AdvancedFilters
+                    onFiltersChange={setAdvancedFilters}
+                    availableDrivers={availableDrivers}
+                    availableVehicles={availableVehicles}
+                  />
                   <div className="table-filters">
                     <input
                       type="search"
@@ -680,41 +751,26 @@ function App() {
                   </div>
 
                   {selectedRequestIds.length > 0 && (
-                    <div className="batch-actions" role="toolbar" aria-label="Ações em lote">
-                      <span className="batch-info">
-                        <strong>{selectedRequestIds.length}</strong> selecionada{selectedRequestIds.length > 1 ? 's' : ''}
-                      </span>
-                      <div className="batch-controls">
-                        <button
-                          className="cta ghost"
-                          onClick={handleBatchStatusUpdate.bind(null, 'agendada')}
-                          aria-label="Agendar selecionadas"
-                        >
-                          Agendar
-                        </button>
-                        <button
-                          className="cta ghost"
-                          onClick={handleBatchStatusUpdate.bind(null, 'em_rota')}
-                          aria-label="Marcar como em rota"
-                        >
-                          Em rota
-                        </button>
-                        <button
-                          className="cta ghost"
-                          onClick={handleBatchStatusUpdate.bind(null, 'concluida')}
-                          aria-label="Marcar como concluída"
-                        >
-                          Concluir
-                        </button>
-                        <button
-                          className="cta ghost danger"
-                          onClick={handleBatchDelete}
-                          aria-label="Excluir selecionadas"
-                        >
-                          Excluir
-                        </button>
-                      </div>
-                    </div>
+                    <BulkOperations
+                      selectedRequests={selectedRequestIds}
+                      requests={sortedRequests}
+                      onBulkUpdate={(ids, status) => {
+                        // Set selected requests and then update status
+                        setSelectedRequestIds(ids);
+                        handleBatchStatusUpdate(status as RequestStatus);
+                      }}
+                      onBulkDelete={handleBatchDelete}
+                      onExport={(format) => {
+                        // Implement export functionality
+                        console.log('Exporting in format:', format);
+                        showBanner('success', `Exportando em formato ${format.toUpperCase()}...`);
+                      }}
+                      onImport={(file) => {
+                        // Implement import functionality
+                        console.log('Importing file:', file);
+                        showBanner('success', `Importando arquivo ${file.name}...`);
+                      }}
+                    />
                   )}
                 </div>
 
@@ -782,6 +838,50 @@ function App() {
                   </div>
                 </div>
               </>
+            ) : operatorView === 'gps' ? (
+              activeRequest ? (
+                <GPSTracking
+                  request={activeRequest}
+                  onLocationUpdate={(location) => {
+                    // Handle location updates - could integrate with backend
+                    console.log('Location update:', location);
+                  }}
+                />
+              ) : (
+                <div className="empty-state">
+                  <div className="empty-icon"></div>
+                  <strong>Selecione uma solicitação</strong>
+                  <p>Para visualizar o rastreamento GPS, primeiro selecione uma solicitação ativa.</p>
+                </div>
+              )
+            ) : operatorView === 'monitoramento' ? (
+              <MonitoringDashboard
+                userRole={session.role}
+                requests={requests}
+                users={users}
+                clients={clients}
+              />
+            ) : operatorView === 'configuracoes' ? (
+              <Settings
+                userRole={session.role}
+                onExportData={(format) => {
+                  console.log('Exporting data in format:', format);
+                  showBanner('success', `Exportando dados em ${format.toUpperCase()}...`);
+                }}
+                onImportData={(file) => {
+                  console.log('Importing data from file:', file);
+                  showBanner('success', `Importando dados de ${file.name}...`);
+                }}
+                onClearCache={() => {
+                  localStorage.clear();
+                  showBanner('success', 'Cache limpo com sucesso!');
+                }}
+                onResetSettings={() => {
+                  if (window.confirm('Deseja realmente resetar todas as configurações?')) {
+                    showBanner('success', 'Configurações resetadas!');
+                  }
+                }}
+              />
             ) : (
               <>
                 <div className="filter-row">
@@ -1219,6 +1319,8 @@ function App() {
         <ToastStack toasts={toasts} />
       </main>
     </div>
+      </LoadingOverlay>
+    </ErrorBoundary>
   );
 }
 

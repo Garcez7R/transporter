@@ -15,8 +15,12 @@
     "cf:deploy": "npm run build && npx wrangler pages deploy dist --project-name transporter"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.97.0",
+    "date-fns": "^4.1.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "react-hot-toast": "^2.6.0",
+    "recharts": "^3.8.1"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250813.0",
