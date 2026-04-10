@@ -98,9 +98,11 @@ npm run cf:deploy
 
 ### 🏥 Operador
 - Cadastro e triagem de solicitações
-- Dashboard operacional básico
+- **Interface simplificada**: foco no cadastro
 - Filtros avançados e busca inteligente
+- Monitoramento básico de status operacional
 - Gestão de pacientes e destinos
+- **Abas disponíveis**: Nova solicitação, Solicitações recentes, Pacientes, Monitoramento
 
 ### 👔 Gerente
 - Controle operacional completo
@@ -127,6 +129,7 @@ npm run cf:deploy
 - **Gráficos Interativos**: Barras, pizza, linhas e área
 - **Métricas de Performance**: Tempo médio de resposta
 - **Monitoramento de Frota**: Status de veículos e motoristas
+- **Níveis de Acesso**: Básico (Operador) | Avançado (Gerente) | Completo (Admin)
 
 ### 🔍 Sistema de Filtros
 - **Filtros por Data**: Hoje, ontem, semana, mês, período customizado

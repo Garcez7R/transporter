@@ -11,6 +11,7 @@ type HeaderSidebarProps = {
   internalNavItems: NavItem[];
   activeNav: string;
   onNavItemClick: (item: NavItem) => void;
+  onOperatorQuickAction?: (action: 'novo' | 'recentes') => void;
   visibleRequestsCount: number;
   pendingToday: number;
   unreadMessages: number;
@@ -26,6 +27,7 @@ export function HeaderSidebar({
   internalNavItems,
   activeNav,
   onNavItemClick,
+  onOperatorQuickAction,
   visibleRequestsCount,
   pendingToday,
   unreadMessages,
@@ -87,6 +89,17 @@ export function HeaderSidebar({
             </a>
           ))}
         </nav>
+
+        {session.role === 'operador' && onOperatorQuickAction ? (
+          <div className="saas-sidebar-quick-actions">
+            <button className="cta" type="button" onClick={() => onOperatorQuickAction('novo')}>
+              + Nova solicitação
+            </button>
+            <button className="cta ghost" type="button" onClick={() => onOperatorQuickAction('recentes')}>
+              Solicitações recentes
+            </button>
+          </div>
+        ) : null}
 
         <div className="saas-sidebar-actions">
           {session.role === 'operador' ? (

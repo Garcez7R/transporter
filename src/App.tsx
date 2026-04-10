@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { demoUsers } from './data';
@@ -206,6 +206,8 @@ function App() {
   const [operatorView, setOperatorView] = useState<'dashboard' | 'novo' | 'recentes' | 'pacientes' | 'gps' | 'monitoramento' | 'configuracoes'>('novo');
   const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>([]);
   const [requestSort, setRequestSort] = useState<'recent' | 'status' | 'destination'>('recent');
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isAppInstalled, setIsAppInstalled] = useState(false);
 
   const sortedRequests = useMemo(() => {
     const sorted = [...visibleRequests];
@@ -267,16 +269,65 @@ function App() {
     ];
   }, [session?.role, operatorView]);
 
-  function handleNavItemClick(item: { id: string; label: string }) {
-    if (session?.role === 'operador' && item.id === 'pacientes') {
-      setActiveNav('solicitacoes');
-      setOperatorView('pacientes');
-      return;
+  useEffect(() => {
+    if (!session || internalNavItems.length === 0) return;
+    const firstNav = internalNavItems[0];
+    if (!firstNav) return;
+    if (!internalNavItems.some((item) => item.id === activeNav)) {
+      setActiveNav(firstNav.id);
     }
+  }, [activeNav, internalNavItems, session]);
 
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (event: BeforeInstallPromptEvent) => {
+      event.preventDefault();
+      setDeferredPrompt(event);
+    };
+
+    const handleAppInstalled = () => {
+      setIsAppInstalled(true);
+      setDeferredPrompt(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt as EventListener);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt as EventListener);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  function handleNavItemClick(item: { id: string; label: string }) {
     setActiveNav(item.id);
-    if (session?.role === 'operador' && item.id === 'solicitacoes' && operatorView === 'pacientes') {
+
+    if (session?.role === 'operador') {
+      if (item.id === 'pacientes') {
+        setOperatorView('pacientes');
+      } else if (item.id === 'solicitacoes') {
+        setOperatorView('novo');
+      }
+    }
+  }
+
+  function handleOperatorQuickAction(action: 'novo' | 'recentes') {
+    setActiveNav('solicitacoes');
+    if (action === 'novo') {
       setOperatorView('novo');
+    } else if (action === 'recentes') {
+      setOperatorView('recentes');
+    }
+  }
+
+  async function handleInstallApp() {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const choiceResult = await deferredPrompt.userChoice;
+    if (choiceResult.outcome === 'accepted') {
+      setDeferredPrompt(null);
+      showBanner('success', 'Transporter está pronto para instalação.');
+    } else {
+      showBanner('error', 'Instalação cancelada. Você pode instalar mais tarde.');
     }
   }
 
@@ -493,6 +544,7 @@ function App() {
           internalNavItems={internalNavItems}
           activeNav={activeNav}
           onNavItemClick={handleNavItemClick}
+          onOperatorQuickAction={handleOperatorQuickAction}
           visibleRequestsCount={visibleRequests.length}
           pendingToday={pendingToday}
           unreadMessages={unreadMessages}
@@ -514,6 +566,11 @@ function App() {
               <button className="cta ghost font-toggle" type="button" onClick={() => setPatientFontLarge((prev) => !prev)}>
                 {patientFontLarge ? 'Fonte normal' : 'Fonte maior'}
               </button>
+              {deferredPrompt && !isAppInstalled ? (
+                <button className="cta ghost" type="button" onClick={handleInstallApp}>
+                  Instalar app
+                </button>
+              ) : null}
               <button className="cta ghost" onClick={handleLogout} type="button">
                 Sair
               </button>
@@ -530,6 +587,11 @@ function App() {
                 <button className="cta ghost" type="button" onClick={() => setThemeMode((current) => (current === 'dark' ? 'light' : 'dark'))}>
                   {themeMode === 'dark' ? 'Modo claro' : 'Modo escuro'}
                 </button>
+                {deferredPrompt && !isAppInstalled ? (
+                  <button className="cta ghost" type="button" onClick={handleInstallApp}>
+                    Instalar app
+                  </button>
+                ) : null}
                 <button className="cta ghost" onClick={handleLogout} type="button">
                   Sair
                 </button>
@@ -604,25 +666,7 @@ function App() {
               <p className="eyebrow">Atendimento</p>
               <div className="section-toolbar">
                 <h2>Solicitações</h2>
-                <div className="toolbar-actions">
-                  <button className={`cta ghost ${operatorView === 'novo' ? 'active' : ''}`} type="button" onClick={() => { setOperatorView('novo'); setActiveNav('solicitacoes'); }}>
-                    Nova solicitação
-                  </button>
-                  <button className={`cta ghost ${operatorView === 'recentes' ? 'active' : ''}`} type="button" onClick={() => { setOperatorView('recentes'); setActiveNav('solicitacoes'); }}>
-                    Solicitações recentes
-                  </button>
-                  <button className={`cta ghost ${operatorView === 'pacientes' ? 'active' : ''}`} type="button" onClick={() => { setOperatorView('pacientes'); setActiveNav('solicitacoes'); }}>
-                    Pacientes
-                  </button>
-                  <button className={`cta ghost ${operatorView === 'monitoramento' ? 'active' : ''}`} type="button" onClick={() => { setOperatorView('monitoramento'); setActiveNav('solicitacoes'); }}>
-                    📊 Monitoramento
-                  </button>
-                  {((session as any).role === 'gerente' || (session as any).role === 'administrador') && (
-                    <button className={`cta ghost ${operatorView === 'configuracoes' ? 'active' : ''}`} type="button" onClick={() => { setOperatorView('configuracoes'); setActiveNav('solicitacoes'); }}>
-                      ⚙️ Configurações
-                    </button>
-                  )}
-                </div>
+                <p className="section-note">Use o menu lateral para navegação principal. Aqui você gera novas solicitações e acompanha o histórico.</p>
               </div>
             </div>
 
