@@ -10,8 +10,8 @@ export type UseRequestsResult = {
   requests: TripRequest[];
   visibleRequests: TripRequest[];
   activeRequest: TripRequest | null;
-  activeRequestId: string;
-  setActiveRequestId: (id: string) => void;
+  activeRequestId: string | null;
+  setActiveRequestId: (id: string | null) => void;
   requestFilter: string;
   setRequestFilter: (value: string) => void;
   // Advanced filters
@@ -104,7 +104,7 @@ export type UseRequestsResult = {
 
 export function useRequests(session: SessionUser | null, showBanner: (type: BannerState['type'], message: string) => void, pushToast: (type: ToastState['type'], message: string) => void): UseRequestsResult {
   const [requests, setRequests] = useState<TripRequest[]>([]);
-  const [activeRequestId, setActiveRequestId] = useState('');
+  const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
   const [requestFilter, setRequestFilter] = useState('');
   // Advanced filters state
   const [advancedFilters, setAdvancedFilters] = useState<UseRequestsResult['advancedFilters']>({

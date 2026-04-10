@@ -1065,140 +1065,324 @@ function App() {
         {session.role === 'gerente' && (
           <section className="glass-card panel-card" id="distribuicao">
             <div className="section-head">
-              <p className="eyebrow">Distribuição</p>
-              <h2>Configuração operacional da viagem</h2>
+              <p className="eyebrow">Centro de Controle Operacional</p>
+              <div className="section-toolbar">
+                <h2>Distribuição de Viagens</h2>
+                <div className="toolbar-actions">
+                  <button className="cta ghost" type="button" onClick={() => setAdvancedFilters({ ...advancedFilters, statuses: ['aguardando_distribuicao'] })}>
+                    Pendentes ({visibleRequests.filter(r => r.status === 'aguardando_distribuicao').length})
+                  </button>
+                  <button className="cta ghost" type="button" onClick={() => setAdvancedFilters({ ...advancedFilters, statuses: ['agendada'] })}>
+                    Agendadas ({visibleRequests.filter(r => r.status === 'agendada').length})
+                  </button>
+                  <button className="cta ghost" type="button" onClick={() => setAdvancedFilters({ ...advancedFilters, statuses: [] })}>
+                    Todas ({visibleRequests.length})
+                  </button>
+                </div>
+              </div>
             </div>
-            <div className="manager-grid">
+
+            {/* Dashboard Overview */}
+            <div className="manager-dashboard">
+              <div className="dashboard-metrics">
+                <div className="metric-card">
+                  <div className="metric-icon">🚗</div>
+                  <div className="metric-content">
+                    <strong>{visibleRequests.filter(r => r.status === 'aguardando_distribuicao').length}</strong>
+                    <span>Aguardando motorista</span>
+                  </div>
+                </div>
+                <div className="metric-card">
+                  <div className="metric-icon">📅</div>
+                  <div className="metric-content">
+                    <strong>{visibleRequests.filter(r => r.status === 'agendada').length}</strong>
+                    <span>Agendadas hoje</span>
+                  </div>
+                </div>
+                <div className="metric-card">
+                  <div className="metric-icon">🏃</div>
+                  <div className="metric-content">
+                    <strong>{visibleRequests.filter(r => r.status === 'em_rota').length}</strong>
+                    <span>Em andamento</span>
+                  </div>
+                </div>
+                <div className="metric-card">
+                  <div className="metric-icon">✅</div>
+                  <div className="metric-content">
+                    <strong>{visibleRequests.filter(r => r.status === 'concluida').length}</strong>
+                    <span>Concluídas hoje</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Advanced Filters */}
+            <div className="manager-filters">
+              <AdvancedFilters
+                onFiltersChange={setAdvancedFilters}
+                availableDrivers={availableDrivers}
+                availableVehicles={availableVehicles}
+              />
+            </div>
+
+            {/* Requests List */}
+            <div className="manager-requests-list">
               {visibleRequests.length ? (
-                visibleRequests.map((request) => (
-                  <article className={`manager-card ${request.id === activeRequestId ? 'request-selected' : ''}`} key={request.id} onClick={() => setActiveRequestId(request.id)}>
-                    <strong>{request.protocol}</strong>
-                    <p>{request.clientName}</p>
-                    <small>{request.destinationFacility || request.destination}</small>
-                  </article>
-                ))
+                <div className="requests-table">
+                  <div className="table-header">
+                    <div className="table-row">
+                      <span>Prioridade</span>
+                      <span>Protocolo</span>
+                      <span>Paciente</span>
+                      <span>Horário</span>
+                      <span>Destino</span>
+                      <span>Motorista</span>
+                      <span>Veículo</span>
+                      <span>Status</span>
+                      <span>Ações</span>
+                    </div>
+                  </div>
+                  <div className="table-body">
+                    {visibleRequests.map((request) => {
+                      const isUrgent = new Date(request.departureAt).getTime() - Date.now() < 2 * 60 * 60 * 1000; // 2 hours
+                      const hasConflict = availableDrivers.includes(request.driver) && availableVehicles.includes(request.vehicle);
+                      return (
+                        <div className={`table-row ${request.id === activeRequestId ? 'selected' : ''} ${isUrgent ? 'urgent' : ''}`} key={request.id} onClick={() => setActiveRequestId(request.id)}>
+                          <div className="priority-indicator">
+                            {isUrgent && <span className="urgent-badge">URGENTE</span>}
+                            {request.status === 'aguardando_distribuicao' && <span className="pending-badge">PENDENTE</span>}
+                          </div>
+                          <strong>{request.protocol}</strong>
+                          <div className="patient-info">
+                            <strong>{request.clientName}</strong>
+                            <small>{request.document}</small>
+                          </div>
+                          <span>{formatSchedule(request.departureAt)}</span>
+                          <div className="destination-info">
+                            <strong>{request.destinationFacility || request.destination}</strong>
+                            <small>{request.destination}</small>
+                          </div>
+                          <span className={request.driver ? 'assigned' : 'unassigned'}>{request.driver || 'Não atribuído'}</span>
+                          <span className={request.vehicle ? 'assigned' : 'unassigned'}>{request.vehicle || 'Não atribuído'}</span>
+                          <span className={`status status-${request.status}`}>{statusLabels[request.status]}</span>
+                          <div className="quick-actions">
+                            <button className="action-btn" onClick={(e) => { e.stopPropagation(); setActiveRequestId(request.id); }} title="Editar distribuição">
+                              ✏️
+                            </button>
+                            <button className="action-btn" onClick={(e) => { e.stopPropagation(); setActiveRequestId(request.id); }} title="Ver detalhes">
+                              👁️
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               ) : (
                 <div className="empty-state">
-                  <div className="empty-icon"></div>
-                  <strong>Sem viagens para distribuir</strong>
-                  <p>Assim que o operador registrar uma solicitação ela aparecerá aqui.</p>
+                  <div className="empty-icon">📋</div>
+                  <strong>Nenhuma solicitação encontrada</strong>
+                  <p>Ajuste os filtros ou aguarde novas solicitações do operador.</p>
                 </div>
               )}
             </div>
 
-            {activeRequest ? (
-              <form className="assignment-panel" onSubmit={handleSaveTrip}>
-                <div className="assignment-head">
-                  <div>
-                    <strong>{activeRequest.clientName}</strong>
-                    <p>{activeRequest.protocol}</p>
+            {/* Assignment Panel */}
+            {activeRequest && (
+              <div className="assignment-modal">
+                <div className="modal-header">
+                  <div className="modal-title">
+                    <h3>Configurar Viagem</h3>
+                    <p>{activeRequest.protocol} - {activeRequest.clientName}</p>
                   </div>
-                  <span className={`status status-${activeRequest.status}`}>{statusLabels[activeRequest.status]}</span>
+                  <button className="close-btn" onClick={() => setActiveRequestId(null)}>✕</button>
                 </div>
-                <div className="assignment-grid">
-                  <label>
-                    <span>CEP do embarque</span>
-                    <div className="input-action">
-                      <input value={managerCep} onChange={(event) => setManagerCep(formatCep(event.target.value))} onBlur={(event) => handleLookupCep(event.target.value, (data) => { setManagerStreet(data.street || managerStreet); setManagerNeighborhood(data.neighborhood || managerNeighborhood); setManagerCity(data.city || managerCity); })} />
-                      <button className="cta ghost" type="button" onClick={() => handleLookupCep(managerCep, (data) => { setManagerStreet(data.street || managerStreet); setManagerNeighborhood(data.neighborhood || managerNeighborhood); setManagerCity(data.city || managerCity); })}>
-                        Buscar CEP
+
+                <form className="assignment-form" onSubmit={handleSaveTrip}>
+                  <div className="form-sections">
+                    {/* Patient & Trip Info */}
+                    <div className="form-section">
+                      <h4>Informações da Viagem</h4>
+                      <div className="info-grid">
+                        <div className="info-item">
+                          <label>Paciente</label>
+                          <span>{activeRequest.clientName}</span>
+                        </div>
+                        <div className="info-item">
+                          <label>CPF</label>
+                          <span>{formatDocument(activeRequest.document)}</span>
+                        </div>
+                        <div className="info-item">
+                          <label>Telefone</label>
+                          <span>{activeRequest.phoneVisible ? activeRequest.phone : 'Oculto'}</span>
+                        </div>
+                        <div className="info-item">
+                          <label>Destino</label>
+                          <span>{activeRequest.destinationFacility || activeRequest.destination}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Address Section */}
+                    <div className="form-section">
+                      <h4>Endereço de Embarque</h4>
+                      <div className="address-grid">
+                        <label>
+                          <span>CEP</span>
+                          <div className="input-action">
+                            <input value={managerCep} onChange={(event) => setManagerCep(formatCep(event.target.value))} />
+                            <button className="cta ghost" type="button" onClick={() => handleLookupCep(managerCep, (data) => { setManagerStreet(data.street || managerStreet); setManagerNeighborhood(data.neighborhood || managerNeighborhood); setManagerCity(data.city || managerCity); })}>
+                              🔍 Buscar
+                            </button>
+                          </div>
+                        </label>
+                        <label>
+                          <span>Rua</span>
+                          <input value={managerStreet} onChange={(event) => setManagerStreet(event.target.value)} />
+                        </label>
+                        <label>
+                          <span>Número</span>
+                          <input value={managerNumber} onChange={(event) => setManagerNumber(event.target.value)} />
+                        </label>
+                        <label>
+                          <span>Bairro</span>
+                          <input value={managerNeighborhood} onChange={(event) => setManagerNeighborhood(event.target.value)} />
+                        </label>
+                        <label>
+                          <span>Cidade</span>
+                          <input value={managerCity} onChange={(event) => setManagerCity(event.target.value)} />
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Assignment Section */}
+                    <div className="form-section">
+                      <h4>Atribuição Operacional</h4>
+                      <div className="assignment-grid">
+                        <label>
+                          <span>Motorista</span>
+                          <input
+                            list="drivers-list"
+                            value={tripForm.driver}
+                            onChange={(event) => setTripForm({ ...tripForm, driver: event.target.value })}
+                            placeholder="Selecione ou digite o nome"
+                            className={tripForm.driver ? 'filled' : ''}
+                          />
+                          <datalist id="drivers-list">
+                            {availableDrivers.map((driver) => (
+                              <option key={driver} value={driver} />
+                            ))}
+                          </datalist>
+                        </label>
+                        <label>
+                          <span>Veículo</span>
+                          <input
+                            list="vehicles-list"
+                            value={tripForm.vehicle}
+                            onChange={(event) => setTripForm({ ...tripForm, vehicle: event.target.value })}
+                            placeholder="Selecione ou digite a placa/modelo"
+                            className={tripForm.vehicle ? 'filled' : ''}
+                          />
+                          <datalist id="vehicles-list">
+                            {availableVehicles.map((vehicle) => (
+                              <option key={vehicle} value={vehicle} />
+                            ))}
+                          </datalist>
+                        </label>
+                        <label>
+                          <span>Status Atual</span>
+                          <select value={tripForm.status} onChange={(event) => setTripForm({ ...tripForm, status: event.target.value as RequestStatus })}>
+                            <option value="aguardando_distribuicao">Aguardando distribuição</option>
+                            <option value="agendada">Agendada</option>
+                            <option value="em_rota">Em rota</option>
+                            <option value="concluida">Concluída</option>
+                            <option value="cancelada">Cancelada</option>
+                          </select>
+                        </label>
+                        <label>
+                          <span>Telefone Visível</span>
+                          <select value={tripForm.phoneVisible ? 'sim' : 'nao'} onChange={(event) => setTripForm({ ...tripForm, phoneVisible: event.target.value === 'sim' })}>
+                            <option value="sim">Sim - Motorista pode ligar</option>
+                            <option value="nao">Não - Manter oculto</option>
+                          </select>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Schedule Section */}
+                    <div className="form-section">
+                      <h4>Horários</h4>
+                      <div className="schedule-grid">
+                        <label>
+                          <span>Data e Hora da Viagem</span>
+                          <div className="input-group">
+                            <input type="date" value={tripDate} onChange={(event) => setTripDate(event.target.value)} />
+                            <input type="time" value={tripTime} onChange={(event) => setTripTime(formatTime(event.target.value))} />
+                          </div>
+                        </label>
+                        <label>
+                          <span>Data e Hora da Consulta</span>
+                          <div className="input-group">
+                            <input type="date" value={tripConsultDate} onChange={(event) => setTripConsultDate(event.target.value)} />
+                            <input type="time" value={tripConsultTime} onChange={(event) => setTripConsultTime(formatTime(event.target.value))} />
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Notes Section */}
+                    <div className="form-section">
+                      <h4>Observações</h4>
+                      <label className="full-width">
+                        <textarea
+                          value={tripForm.notes}
+                          onChange={(event) => setTripForm({ ...tripForm, notes: event.target.value })}
+                          placeholder="Adicione observações importantes para o motorista..."
+                          rows={3}
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="form-actions">
+                    <button className="cta" type="submit">
+                      💾 Salvar Alterações
+                    </button>
+                    {activeRequest.status === 'aguardando_distribuicao' && tripForm.driver && tripForm.vehicle && (
+                      <button className="cta success" type="button" onClick={async () => {
+                        await patchRequest(activeRequest.id, { status: 'agendada', driver: tripForm.driver, vehicle: tripForm.vehicle });
+                        showBanner('success', 'Viagem distribuída e agendada com sucesso!');
+                        setActiveRequestId(null);
+                      }}>
+                        🚀 Distribuir & Agendar
                       </button>
-                    </div>
-                  </label>
-                  <label>
-                    <span>Rua</span>
-                    <input value={managerStreet} onChange={(event) => setManagerStreet(event.target.value)} onBlur={applyManagerAddress} />
-                  </label>
-                  <label>
-                    <span>Número</span>
-                    <input value={managerNumber} onChange={(event) => setManagerNumber(event.target.value)} onBlur={applyManagerAddress} />
-                  </label>
-                  <label>
-                    <span>Bairro</span>
-                    <input value={managerNeighborhood} onChange={(event) => setManagerNeighborhood(event.target.value)} onBlur={applyManagerAddress} />
-                  </label>
-                  <label>
-                    <span>Cidade</span>
-                    <input value={managerCity} onChange={(event) => setManagerCity(event.target.value)} onBlur={applyManagerAddress} />
-                  </label>
-                  <label>
-                    <span>Motorista</span>
-                    <input list="drivers-list" value={tripForm.driver} onChange={(event) => setTripForm({ ...tripForm, driver: event.target.value })} placeholder="Selecione ou digite" />
-                    <datalist id="drivers-list">
-                      {availableDrivers.map((driver) => (
-                        <option key={driver} value={driver} />
-                      ))}
-                    </datalist>
-                  </label>
-                  <label>
-                    <span>Veículo</span>
-                    <input list="vehicles-list" value={tripForm.vehicle} onChange={(event) => setTripForm({ ...tripForm, vehicle: event.target.value })} placeholder="Selecione ou digite" />
-                    <datalist id="vehicles-list">
-                      {availableVehicles.map((vehicle) => (
-                        <option key={vehicle} value={vehicle} />
-                      ))}
-                    </datalist>
-                  </label>
-                  <label>
-                    <span>Data e hora da viagem</span>
-                    <div className="input-group">
-                      <input type="date" value={tripDate} onChange={(event) => setTripDate(event.target.value)} />
-                      <input type="time" value={tripTime} onChange={(event) => setTripTime(formatTime(event.target.value))} />
-                    </div>
-                  </label>
-                  <label>
-                    <span>Data e hora da consulta</span>
-                    <div className="input-group">
-                      <input type="date" value={tripConsultDate} onChange={(event) => setTripConsultDate(event.target.value)} />
-                      <input type="time" value={tripConsultTime} onChange={(event) => setTripConsultTime(formatTime(event.target.value))} />
-                    </div>
-                  </label>
-                  <label>
-                    <span>Status</span>
-                    <select value={tripForm.status} onChange={(event) => setTripForm({ ...tripForm, status: event.target.value as RequestStatus })}>
-                      <option value="rascunho">Rascunho</option>
-                      <option value="em_atendimento">Em atendimento</option>
-                      <option value="aguardando_distribuicao">Aguardando distribuição</option>
-                      <option value="agendada">Agendada</option>
-                      <option value="em_rota">Em rota</option>
-                      <option value="concluida">Concluída</option>
-                      <option value="cancelada">Cancelada</option>
-                    </select>
-                  </label>
-                  <label>
-                    <span>Telefone visível</span>
-                    <select value={tripForm.phoneVisible ? 'sim' : 'nao'} onChange={(event) => setTripForm({ ...tripForm, phoneVisible: event.target.value === 'sim' })}>
-                      <option value="sim">sim</option>
-                      <option value="nao">nao</option>
-                    </select>
-                  </label>
-                </div>
-                <label className="full-width">
-                  <span>Observações</span>
-                  <textarea value={tripForm.notes} onChange={(event) => setTripForm({ ...tripForm, notes: event.target.value })} />
-                </label>
-                <div className="form-actions assignment-actions">
-                  <button className="cta" type="submit">
-                    Salvar ajustes
-                  </button>
-                  {activeRequest.status !== 'agendada' && (
-                    <button className="cta ghost" type="button" onClick={async () => { await patchRequest(activeRequest.id, { status: 'agendada' }); showBanner('success', 'Viagem agendada com sucesso.'); }}>
-                      Agendar viagem
+                    )}
+                    {activeRequest.status === 'agendada' && (
+                      <button className="cta warning" type="button" onClick={async () => {
+                        await patchRequest(activeRequest.id, { status: 'em_rota' });
+                        showBanner('success', 'Viagem iniciada - motorista notificado!');
+                        setActiveRequestId(null);
+                      }}>
+                        ▶️ Iniciar Rota
+                      </button>
+                    )}
+                    {activeRequest.status === 'em_rota' && (
+                      <button className="cta success" type="button" onClick={async () => {
+                        await patchRequest(activeRequest.id, { status: 'concluida' });
+                        showBanner('success', 'Viagem concluída com sucesso!');
+                        setActiveRequestId(null);
+                      }}>
+                        ✅ Marcar Concluída
+                      </button>
+                    )}
+                    <button className="cta ghost" type="button" onClick={() => setActiveRequestId(null)}>
+                      ❌ Cancelar
                     </button>
-                  )}
-                  {activeRequest.status === 'agendada' && (
-                    <button className="cta ghost" type="button" onClick={async () => { await patchRequest(activeRequest.id, { status: 'em_rota' }); showBanner('success', 'Viagem iniciada.'); }}>
-                      Iniciar rota
-                    </button>
-                  )}
-                  {activeRequest.status === 'em_rota' && (
-                    <button className="cta ghost" type="button" onClick={async () => { await patchRequest(activeRequest.id, { status: 'concluida' }); showBanner('success', 'Viagem marcada como concluída.'); }}>
-                      Marcar concluída
-                    </button>
-                  )}
-                </div>
-              </form>
-            ) : null}
+                  </div>
+                </form>
+              </div>
+            )}
           </section>
         )}
 
