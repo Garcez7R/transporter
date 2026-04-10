@@ -59,6 +59,7 @@ type RequestsPanelProps = {
     formatAddressDisplay: (address: string, cep?: string | null) => string;
     formatSchedule: (value: string) => string;
     buildMapQuery: (request: TripRequest) => string;
+    confirmAction?: (message: string, onConfirm: () => void) => void;
   };
 };
 
@@ -298,7 +299,9 @@ export function RequestsPanel({
                             className="cta ghost danger"
                             type="button"
                             onClick={() => {
-                              if (window.confirm('Deseja excluir esta solicitação?')) {
+                              if (helpers.confirmAction) {
+                                helpers.confirmAction('Deseja excluir esta solicitação?', () => handleDeleteRequest(request.id));
+                              } else if (window.confirm('Deseja excluir esta solicitação?')) {
                                 handleDeleteRequest(request.id);
                               }
                             }}

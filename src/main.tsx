@@ -1,13 +1,16 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import { ConfirmationModalProvider } from './hooks/useConfirmationModal';
 import './styles.css';
 
 const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement);
 
 root.render(
   <React.StrictMode>
-    <App />
+    <ConfirmationModalProvider>
+      <App />
+    </ConfirmationModalProvider>
   </React.StrictMode>
 );
 

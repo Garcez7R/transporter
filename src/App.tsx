@@ -9,6 +9,7 @@ import { useClients } from './hooks/useClients';
 import { useRequests } from './hooks/useRequests';
 import { useSession } from './hooks/useSession';
 import { useUsers } from './hooks/useUsers';
+import { useConfirmationModal } from './hooks/useConfirmationModal';
 import { useNotifications } from './hooks/useNotifications';
 import { ClientModal } from './components/ClientModal';
 import { HeaderSidebar } from './components/HeaderSidebar';
@@ -22,6 +23,7 @@ import { GPSTracking } from './components/GPSTracking';
 import { Settings } from './components/Settings';
 import { MonitoringDashboard } from './components/MonitoringDashboard';
 import { BulkOperations } from './components/BulkOperations';
+import { ConfirmationModal } from './components/ConfirmationModal';
 import { ErrorBoundary, LoadingOverlay } from './components/ErrorBoundary';
 import { useOffline } from './hooks/useOffline';
 import { parseAddress } from './lib/utils';
@@ -80,7 +82,8 @@ function App() {
   } = sessionHook;
 
   const requestsHook = useRequests(session, showBanner, pushToast);
-  const clientsHook = useClients(session, showBanner, pushToast);
+  const confirmationModal = useConfirmationModal();
+  const clientsHook = useClients(session, showBanner, pushToast, confirmationModal.showConfirmation);
   const usersHook = useUsers(session, showBanner, pushToast);
   const notifications = useNotifications();
   const offline = useOffline();
@@ -347,15 +350,18 @@ function App() {
 
   async function handleBatchDelete() {
     if (!selectedRequestIds.length) return;
-    if (!window.confirm(`Excluir ${selectedRequestIds.length} solicitações selecionadas?`)) return;
-
-    for (const requestId of selectedRequestIds) {
-      await handleDeleteRequest(requestId);
-    }
-    setSelectedRequestIds([]);
-    if (session?.token) {
-      await refreshRequests(session.token);
-    }
+    confirmationModal.showConfirmation(
+      `Excluir ${selectedRequestIds.length} solicitações selecionadas?`,
+      async () => {
+        for (const requestId of selectedRequestIds) {
+          await handleDeleteRequest(requestId);
+        }
+        setSelectedRequestIds([]);
+        if (session?.token) {
+          await refreshRequests(session.token);
+        }
+      }
+    );
   }
 
   async function handleBatchStatusUpdate(status: RequestStatus) {
@@ -521,6 +527,7 @@ function App() {
         />
         <ToastStack toasts={toasts} />
         <NotificationContainer />
+        <ConfirmationModal />
       </div>
     );
   }
@@ -870,7 +877,7 @@ function App() {
                             </button>
                             <button
                               className="cta ghost danger"
-                              onClick={() => { if (window.confirm('Deseja excluir esta solicitação?')) { handleDeleteRequest(request.id); } }}
+                              onClick={() => confirmationModal.showConfirmation('Deseja excluir esta solicitação?', () => handleDeleteRequest(request.id))}
                               aria-label={`Excluir solicitação ${request.protocol}`}
                             >
                               Excluir
@@ -911,9 +918,9 @@ function App() {
                   showBanner('success', 'Cache limpo com sucesso!');
                 }}
                 onResetSettings={() => {
-                  if (window.confirm('Deseja realmente resetar todas as configurações?')) {
+                  confirmationModal.showConfirmation('Deseja realmente resetar todas as configurações?', () => {
                     showBanner('success', 'Configurações resetadas!');
-                  }
+                  });
                 }}
               />
             ) : (

@@ -29,7 +29,7 @@ export type UseClientsResult = {
   openClientModal: (client: ClientRow) => void;
 };
 
-export function useClients(session: SessionUser | null, showBanner: (type: BannerState['type'], message: string) => void, pushToast: (type: ToastState['type'], message: string) => void): UseClientsResult {
+export function useClients(session: SessionUser | null, showBanner: (type: BannerState['type'], message: string) => void, pushToast: (type: ToastState['type'], message: string) => void, confirmAction?: (message: string, onConfirm: () => void) => void): UseClientsResult {
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [clientFilter, setClientFilter] = useState('');
   const [activeClientId, setActiveClientId] = useState<number | null>(null);
@@ -132,12 +132,12 @@ export function useClients(session: SessionUser | null, showBanner: (type: Banne
   async function handleModalUpdateClient(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!session?.token || !activeClientId) return;
-    if (!window.confirm('Confirmar atualização do cadastro deste paciente?')) return;
-
-    try {
-      await updateClient(
-        activeClientId,
-        {
+    
+    const performUpdate = async () => {
+      try {
+        await updateClient(
+          activeClientId,
+          {
           name: clientForm.name.trim(),
           document: normalizeDocument(clientForm.document),
           phone: clientForm.phone.trim(),
@@ -152,23 +152,37 @@ export function useClients(session: SessionUser | null, showBanner: (type: Banne
     } catch (error) {
       showBanner('error', error instanceof Error ? error.message : 'Não foi possível atualizar o paciente.');
     }
+    };
+
+    if (confirmAction) {
+      confirmAction('Confirmar atualização do cadastro deste paciente?', performUpdate);
+    } else if (window.confirm('Confirmar atualização do cadastro deste paciente?')) {
+      await performUpdate();
+    }
   }
 
   async function handleDeleteClient(id: number) {
     if (!session?.token) return;
-    if (!window.confirm('Deseja excluir este paciente? Essa ação não poderá ser desfeita.')) return;
 
-    try {
-      await deleteClient(id, session.token);
-      pushToast('success', 'Paciente excluído.');
-      await refreshClients(session.token, clientFilter);
-      if (activeClientId === id) {
-        setActiveClientId(null);
-        setClientForm({ name: '', document: '', phone: '', cep: '', street: '', number: '', neighborhood: '', city: '', address: '' });
+    const performDelete = async () => {
+      try {
+        await deleteClient(id, session.token);
+        pushToast('success', 'Paciente excluído.');
+        await refreshClients(session.token, clientFilter);
+        if (activeClientId === id) {
+          setActiveClientId(null);
+          setClientForm({ name: '', document: '', phone: '', cep: '', street: '', number: '', neighborhood: '', city: '', address: '' });
+        }
+        setClientModalOpen(false);
+      } catch (error) {
+        showBanner('error', error instanceof Error ? error.message : 'Não foi possível excluir o paciente.');
       }
-      setClientModalOpen(false);
-    } catch (error) {
-      showBanner('error', error instanceof Error ? error.message : 'Não foi possível excluir o paciente.');
+    };
+
+    if (confirmAction) {
+      confirmAction('Deseja excluir este paciente? Essa ação não poderá ser desfeita.', performDelete);
+    } else if (window.confirm('Deseja excluir este paciente? Essa ação não poderá ser desfeita.')) {
+      await performDelete();
     }
   }
 

@@ -2600,3 +2600,88 @@ select:focus {
     justify-content: space-between;
   }
 }
+
+/* Confirmation Modal Styles */
+.confirmation-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  backdrop-filter: blur(4px);
+}
+
+.confirmation-modal {
+  background: var(--panel-surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 0;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: var(--shadow-panel);
+  animation: modal-appear 0.2s ease-out;
+}
+
+@keyframes modal-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.confirmation-modal-header {
+  padding: 24px 24px 16px 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.confirmation-modal-header h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.confirmation-modal-body {
+  padding: 24px;
+}
+
+.confirmation-modal-body p {
+  margin: 0;
+  color: var(--text-soft);
+  line-height: 1.5;
+}
+
+.confirmation-modal-actions {
+  padding: 16px 24px 24px 24px;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.confirmation-modal-actions .cta {
+  min-width: 100px;
+}
+
+@media (max-width: 480px) {
+  .confirmation-modal {
+    margin: 20px;
+    width: calc(100% - 40px);
+  }
+
+  .confirmation-modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .confirmation-modal-actions .cta {
+    width: 100%;
+  }
+}
