@@ -271,6 +271,15 @@ function App() {
 
   useEffect(() => {
     if (!session || internalNavItems.length === 0) return;
+
+    if (session.role === 'operador') {
+      if (activeNav !== 'solicitacoes' && activeNav !== 'pacientes') {
+        setActiveNav('solicitacoes');
+        setOperatorView('novo');
+      }
+      return;
+    }
+
     const firstNav = internalNavItems[0];
     if (!firstNav) return;
     if (!internalNavItems.some((item) => item.id === activeNav)) {
