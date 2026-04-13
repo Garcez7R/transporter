@@ -1,4 +1,4 @@
-# 🚑 Transporter - Sistema Enterprise de Transporte de Pacientes
+# 🚑 Transporter - Sistema de Transporte de Pacientes
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/your-repo/transporter/actions)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue)](https://www.typescriptlang.org/)
@@ -6,23 +6,19 @@
 [![Cloudflare](https://img.shields.io/badge/Cloudflare-Pages-orange)](https://pages.cloudflare.com/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-> **Plataforma enterprise completa para gestão de transporte de pacientes** - PWA moderna com funcionalidades avançadas de monitoramento, analytics e operações offline.
+> **Plataforma web para gestão de transporte de pacientes** — foco em operação, rastreabilidade e controle de acesso.
 
 ## 📋 Visão Geral
 
-O **Transporter** é uma solução completa para gestão de transporte de pacientes, desenvolvida com tecnologias modernas e arquitetura serverless. Oferece uma experiência enterprise com funcionalidades avançadas de monitoramento em tempo real, analytics detalhados, operações offline e controle de acesso granular.
+O **Transporter** é uma solução para gestão de transporte de pacientes, desenvolvida com arquitetura serverless e módulos bem separados. O objetivo é oferecer uma operação clara para equipes internas, com controle de acesso por perfil e fluxo completo de solicitações.
 
 ### ✨ Principais Características
 
 - 🔐 **Controle de Acesso**: 5 perfis distintos (Paciente, Operador, Gerente, Motorista, Administrador)
-- 📊 **Analytics em Tempo Real**: Dashboards interativos com KPIs e gráficos avançados
-- 🔍 **Filtros Avançados**: Busca inteligente por múltiplos critérios
-- 📍 **GPS Tracking**: Rastreamento em tempo real com mapas interativos
-- 📱 **PWA Offline**: Funcionamento completo sem conexão
-- 🔔 **Notificações Inteligentes**: Push notifications e alertas contextuais
-- ⚡ **Operações em Lote**: Processamento massivo de solicitações
-- 🔒 **Auditoria Completa**: Logs detalhados de todas as ações
-- 📤 **Export/Import**: Integração com múltiplos formatos de dados
+- 📊 **Painel Operacional**: KPIs básicos, filtros e listagens
+- 🔍 **Filtros Avançados**: busca por múltiplos critérios
+- 🧾 **Auditoria**: trilha de eventos e alterações
+- 📱 **PWA**: base para experiência mobile
 
 ## 🏗️ Arquitetura Técnica
 
@@ -30,20 +26,19 @@ O **Transporter** é uma solução completa para gestão de transporte de pacien
 - **React 19** com TypeScript
 - **Vite** para build e desenvolvimento
 - **PWA** com Service Worker avançado
-- **Tailwind CSS** para estilização
+- **CSS customizado** (tokens + componentes)
 - **Recharts** para visualizações de dados
 
 ### Backend
 - **Cloudflare Pages Functions** (Serverless)
 - **Cloudflare D1** (SQLite distribuído)
-- **RESTful API** com autenticação JWT
+- **REST API** com sessões e controle de acesso
 
-### Recursos Avançados
+### Recursos Disponíveis no código
 - **Error Boundaries** para tratamento robusto de erros
-- **Code Splitting** e lazy loading
-- **Background Sync** para operações offline
-- **Push Notifications** do browser
-- **Caching Inteligente** com múltiplas estratégias
+- **Hooks especializados** para requests, sessão, usuários, clientes
+- **Base de offline** (estado e sinalização)
+- **Monitoramento UI** com painéis e alertas locais
 
 ## 🚀 Instalação e Configuração
 
@@ -125,11 +120,9 @@ npm run cf:deploy
 ## 📊 Funcionalidades Principais
 
 ### 🎯 Dashboard Analytics
-- **KPIs em Tempo Real**: Taxa de conclusão, ocupação da frota
-- **Gráficos Interativos**: Barras, pizza, linhas e área
-- **Métricas de Performance**: Tempo médio de resposta
-- **Monitoramento de Frota**: Status de veículos e motoristas
-- **Níveis de Acesso**: Básico (Operador) | Avançado (Gerente) | Completo (Admin)
+- **KPIs Operacionais**: visão rápida de status
+- **Gráficos**: barras e distribuição por status
+- **Níveis de Acesso**: Operador | Gerente | Admin
 
 ### 🔍 Sistema de Filtros
 - **Filtros por Data**: Hoje, ontem, semana, mês, período customizado
@@ -138,35 +131,26 @@ npm run cf:deploy
 - **Recursos**: Motorista e veículo específicos
 - **Busca Inteligente**: Protocolo, paciente, destino
 
-### 📍 GPS Tracking
-- **Rastreamento em Tempo Real**: Posição atual dos veículos
-- **Histórico de Trajeto**: Timeline completa da viagem
-- **Métricas de Viagem**: Distância, tempo, velocidade
-- **Integração com Mapas**: Visualização interativa
-
-### 📱 Capacidades Offline
-- **Funcionamento Completo**: Sem conexão de internet
-- **Sincronização Automática**: Quando volta online
-- **Cache Inteligente**: Dados críticos sempre disponíveis
-- **Background Sync**: Operações pendentes processadas automaticamente
-
-### 🔔 Sistema de Notificações
-- **Push Notifications**: Alertas no browser
-- **Notificações Contextuais**: Status changes, urgências
-- **Notificações Sonoras**: Audio alerts configuráveis
-- **Histórico Completo**: Todas as notificações registradas
-
-### ⚡ Operações em Lote
-- **Status Massivo**: Alterar múltiplas solicitações
-- **Exclusão em Lote**: Remover várias entradas
-- **Exportação**: PDF, CSV, JSON
-- **Importação**: Carregar dados externos
-
 ### 🔒 Segurança e Auditoria
-- **Rate Limiting**: Controle de tentativas de acesso
 - **Session Management**: Controle de sessões ativas
-- **Audit Logs**: Rastreamento completo de ações
-- **Security Events**: Alertas de atividades suspeitas
+- **Audit Logs**: Rastreamento de alterações por solicitação
+
+---
+
+## 🧭 Roadmap (Planned)
+
+- GPS tracking com telemetria real
+- Push notifications do navegador
+- Operações em lote (batch update)
+- Rate limiting por endpoint
+- Exportação CSV/relatórios avançados
+
+---
+
+## 📌 Documentação técnica
+
+- [docs/ARCHITECTURE_MAP.md](./docs/ARCHITECTURE_MAP.md)
+- [docs/ENDPOINTS_AUDIT.md](./docs/ENDPOINTS_AUDIT.md)
 
 ## 🛠️ Scripts Disponíveis
 
