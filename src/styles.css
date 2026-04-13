@@ -2123,6 +2123,7 @@ select:focus {
   .two-col,
   .api-grid,
   .manager-grid,
+  .manager-layout,
   .admin-grid,
   .capability-grid,
   .process-grid,
@@ -2246,6 +2247,248 @@ select:focus {
 
 .manager-requests-list {
   margin-bottom: 24px;
+}
+
+.manager-console .manager-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.manager-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.05fr) minmax(320px, 1.2fr) minmax(220px, 0.85fr);
+  gap: 20px;
+}
+
+.manager-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.section-head.compact h3 {
+  font-size: 1.1rem;
+}
+
+.manager-request-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 520px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.manager-request-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--card-surface);
+  cursor: grab;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.manager-request-card:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-float);
+}
+
+.manager-request-main small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.manager-request-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.route-config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.route-dropzone {
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  min-height: 280px;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.route-dropzone.active {
+  border-color: var(--cyan);
+  background: rgba(79, 215, 255, 0.08);
+}
+
+.route-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.route-item {
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface-elevated);
+  cursor: grab;
+}
+
+.route-item.active {
+  border-color: var(--cyan);
+  box-shadow: var(--shadow-float);
+}
+
+.route-order {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.route-content small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.route-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.route-actions .cta {
+  padding: 6px 10px;
+  font-size: 0.75rem;
+}
+
+.route-actions-footer {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.route-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--card-surface);
+}
+
+.route-summary small {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.fleet-layout {
+  gap: 20px;
+}
+
+.fleet-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fleet-card {
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--card-surface);
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.fleet-card.active {
+  border-color: var(--cyan);
+  box-shadow: var(--shadow-float);
+}
+
+.fleet-meta {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.fleet-detail {
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface-elevated);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.fleet-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.fleet-metrics span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.fleet-metrics strong {
+  display: block;
+  margin-top: 4px;
+}
+
+.fleet-section h4 {
+  margin-bottom: 8px;
+}
+
+.fleet-section ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.driver-fuel {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.compact-form input {
+  padding: 10px 12px;
+}
+
+.operator-patients {
+  align-items: start;
 }
 
 .requests-table {

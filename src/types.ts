@@ -171,3 +171,36 @@ export interface UserFormState {
   document: string;
   role: AccessRole;
 }
+
+export interface VehicleTrip {
+  date: string;
+  driver: string;
+  km: number;
+  destination: string;
+}
+
+export interface VehicleMaintenanceItem {
+  date: string;
+  type: string;
+  notes?: string;
+}
+
+export interface VehicleRecord {
+  id: string;
+  name: string;
+  plate: string;
+  fuel: string;
+  odometer: number;
+  autonomyKm: number;
+  lastFuel: {
+    date: string;
+    liters: number;
+    km: number;
+  };
+  oil: {
+    lastKm: number;
+    nextKm: number;
+  };
+  maintenance: VehicleMaintenanceItem[];
+  trips: VehicleTrip[];
+}

@@ -1,4 +1,4 @@
-import type { DemoUser, FleetMember, MessageItem, ProfileSummary, TripRequest } from './types';
+import type { DemoUser, FleetMember, MessageItem, ProfileSummary, TripRequest, VehicleRecord } from './types';
 
 export const demoUsers: DemoUser[] = [
   { name: 'Ana Lúcia Pereira', document: '12345678909', role: 'cliente', pin: '0000', mustChangePin: true },
@@ -186,3 +186,56 @@ export const defaultRequestForm = {
   companions: '',
   notes: ''
 };
+
+export const vehicleFleet: VehicleRecord[] = [
+  {
+    id: 'veh-1',
+    name: 'Sprinter BRG-4A12',
+    plate: 'BRG-4A12',
+    fuel: 'Diesel',
+    odometer: 128430,
+    autonomyKm: 480,
+    lastFuel: {
+      date: '05/04/2026',
+      liters: 52,
+      km: 128120
+    },
+    oil: {
+      lastKm: 126000,
+      nextKm: 131000
+    },
+    maintenance: [
+      { date: '28/03/2026', type: 'Revisão preventiva', notes: 'Filtro e alinhamento' },
+      { date: '12/02/2026', type: 'Troca de óleo', notes: 'Diesel sintético' }
+    ],
+    trips: [
+      { date: '07/04/2026', driver: 'Carlos Mendes', km: 46, destination: 'Centro Hospitalar Vila Nova' },
+      { date: '06/04/2026', driver: 'Carlos Mendes', km: 32, destination: 'Hospital Santa Clara' }
+    ]
+  },
+  {
+    id: 'veh-2',
+    name: 'Onix Preto QWE-9D71',
+    plate: 'QWE-9D71',
+    fuel: 'Gasolina',
+    odometer: 84320,
+    autonomyKm: 360,
+    lastFuel: {
+      date: '03/04/2026',
+      liters: 41,
+      km: 84210
+    },
+    oil: {
+      lastKm: 82000,
+      nextKm: 87000
+    },
+    maintenance: [
+      { date: '20/03/2026', type: 'Troca de pneus', notes: 'Dianteiros' },
+      { date: '05/03/2026', type: 'Revisão de freios', notes: 'Pastilhas substituídas' }
+    ],
+    trips: [
+      { date: '07/04/2026', driver: 'Marina Souza', km: 22, destination: 'Hospital Conceição' },
+      { date: '05/04/2026', driver: 'Marina Souza', km: 28, destination: 'UPA Central' }
+    ]
+  }
+];

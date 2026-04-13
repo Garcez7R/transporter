@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { FormEvent } from 'react';
+import type { DragEvent, FormEvent } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
-import { demoUsers } from './data';
+import { demoUsers, vehicleFleet } from './data';
 import { listClients } from './lib/api';
 import { formatCep, formatDocument, normalizeCep, normalizeDocument } from './lib/persistence';
 import type { AccessRole, RequestStatus } from './types';
@@ -211,6 +211,17 @@ function App() {
   const [requestSort, setRequestSort] = useState<'recent' | 'status' | 'destination'>('recent');
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isAppInstalled, setIsAppInstalled] = useState(false);
+  const [routeDriver, setRouteDriver] = useState('');
+  const [routeVehicle, setRouteVehicle] = useState('');
+  const [routeDate, setRouteDate] = useState('');
+  const [routeStartTime, setRouteStartTime] = useState('');
+  const [routeGapMinutes, setRouteGapMinutes] = useState(20);
+  const [routeRequests, setRouteRequests] = useState<string[]>([]);
+  const [routeActiveId, setRouteActiveId] = useState<string | null>(null);
+  const [routeDropActive, setRouteDropActive] = useState(false);
+  const [activeVehicleId, setActiveVehicleId] = useState(vehicleFleet[0]?.id ?? null);
+  const [showFuelForm, setShowFuelForm] = useState(false);
+  const [fuelForm, setFuelForm] = useState({ odometer: '', liters: '' });
 
   const sortedRequests = useMemo(() => {
     const sorted = [...visibleRequests];
@@ -252,6 +263,7 @@ function App() {
     if (session.role === 'gerente') {
       return [
         { id: 'distribuicao', label: 'Distribuição' },
+        { id: 'frota', label: 'Frota' },
         { id: 'pacientes', label: 'Pacientes' },
         { id: 'detalhes', label: 'Detalhes' }
       ];
@@ -266,6 +278,7 @@ function App() {
 
     return [
       { id: 'viagens', label: 'Viagens' },
+      { id: 'frota', label: 'Frota' },
       { id: 'pacientes', label: 'Pacientes' },
       { id: 'detalhes', label: 'Detalhes' },
       { id: 'usuarios', label: 'Usuários' }
@@ -473,6 +486,154 @@ function App() {
     } catch (error) {
       showBanner('error', error instanceof Error ? error.message : 'Não foi possível cadastrar o paciente.');
     }
+  }
+
+  const activeVehicle = useMemo(
+    () => vehicleFleet.find((vehicle) => vehicle.id === activeVehicleId) ?? vehicleFleet[0] ?? null,
+    [activeVehicleId]
+  );
+
+  const routeItems = useMemo(
+    () => routeRequests.map((id) => visibleRequests.find((request) => request.id === id)).filter(Boolean),
+    [routeRequests, visibleRequests]
+  );
+
+  const routeActive = useMemo(
+    () => routeItems.find((request) => request?.id === routeActiveId) ?? null,
+    [routeItems, routeActiveId]
+  );
+
+  const backlogRequests = useMemo(() => {
+    const eligible = visibleRequests.filter((request) =>
+      ['aguardando_distribuicao', 'agendada', 'em_atendimento'].includes(request.status)
+    );
+    return eligible.filter((request) => !routeRequests.includes(request.id));
+  }, [visibleRequests, routeRequests]);
+
+  function addMinutesToTime(time: string, minutes: number) {
+    if (!time) return '';
+    const [hours, mins] = time.split(':').map(Number);
+    if (Number.isNaN(hours) || Number.isNaN(mins)) return time;
+    const total = hours * 60 + mins + minutes;
+    const normalized = ((total % (24 * 60)) + (24 * 60)) % (24 * 60);
+    const nextHours = Math.floor(normalized / 60);
+    const nextMinutes = normalized % 60;
+    return `${String(nextHours).padStart(2, '0')}:${String(nextMinutes).padStart(2, '0')}`;
+  }
+
+  function buildRouteDeparture(index: number) {
+    if (!routeDate || !routeStartTime) return '';
+    const time = addMinutesToTime(routeStartTime, routeGapMinutes * index);
+    return time ? `${routeDate} ${time}` : '';
+  }
+
+  async function handleRouteAdd(requestId: string) {
+    const request = visibleRequests.find((item) => item.id === requestId);
+    if (!request) return;
+    if (!routeDriver || !routeVehicle) {
+      showBanner('error', 'Selecione motorista e veículo antes de montar a rota.');
+      return;
+    }
+    if (!['aguardando_distribuicao', 'agendada', 'em_atendimento'].includes(request.status)) {
+      showBanner('error', 'Apenas solicitações pendentes podem ser adicionadas à rota.');
+      return;
+    }
+    if (routeRequests.includes(requestId)) return;
+    setRouteRequests((current) => [...current, requestId]);
+    setRouteActiveId(requestId);
+    await patchRequest(requestId, { driver: routeDriver, vehicle: routeVehicle, status: 'agendada' });
+  }
+
+  async function handleRouteRemove(requestId: string) {
+    setRouteRequests((current) => current.filter((id) => id !== requestId));
+    if (routeActiveId === requestId) setRouteActiveId(null);
+    await patchRequest(requestId, { driver: '', vehicle: '', status: 'aguardando_distribuicao' });
+  }
+
+  function reorderRoute(requestId: string, targetId: string) {
+    if (requestId === targetId) return;
+    setRouteRequests((current) => {
+      const next = [...current];
+      const fromIndex = next.indexOf(requestId);
+      const toIndex = next.indexOf(targetId);
+      if (fromIndex === -1 || toIndex === -1) return current;
+      next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, requestId);
+      return next;
+    });
+  }
+
+  function moveRoute(requestId: string, direction: 'up' | 'down') {
+    setRouteRequests((current) => {
+      const next = [...current];
+      const index = next.indexOf(requestId);
+      if (index === -1) return current;
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= next.length) return current;
+      const [item] = next.splice(index, 1);
+      next.splice(targetIndex, 0, item);
+      return next;
+    });
+  }
+
+  async function handleRouteSave() {
+    if (!routeDriver || !routeVehicle) {
+      showBanner('error', 'Selecione motorista e veículo para salvar a rota.');
+      return;
+    }
+    for (let index = 0; index < routeItems.length; index += 1) {
+      const request = routeItems[index];
+      if (!request) continue;
+      const departureAt = buildRouteDeparture(index);
+      await patchRequest(request.id, {
+        driver: routeDriver,
+        vehicle: routeVehicle,
+        status: 'agendada',
+        departureAt: departureAt || request.departureAt
+      });
+    }
+    showBanner('success', 'Rota salva e sincronizada.');
+  }
+
+  function handleRouteClear() {
+    setRouteRequests([]);
+    setRouteActiveId(null);
+  }
+
+  function handleRouteDragStart(event: DragEvent<HTMLDivElement>, requestId: string, origin: 'backlog' | 'route') {
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', `${origin}:${requestId}`);
+  }
+
+  function handleRouteDrop(event: DragEvent<HTMLDivElement>, targetId?: string) {
+    event.preventDefault();
+    setRouteDropActive(false);
+    const payload = event.dataTransfer.getData('text/plain');
+    if (!payload) return;
+    const [origin, requestId] = payload.split(':');
+    if (!requestId) return;
+    if (origin === 'backlog') {
+      if (targetId) {
+        handleRouteAdd(requestId).then(() => reorderRoute(requestId, targetId));
+        return;
+      }
+      handleRouteAdd(requestId);
+      return;
+    }
+    if (origin === 'route' && targetId) {
+      reorderRoute(requestId, targetId);
+    }
+  }
+
+  function handleDriverFuelSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!fuelForm.odometer.trim() || !fuelForm.liters.trim()) {
+      showBanner('error', 'Informe km atual e litros abastecidos.');
+      return;
+    }
+    showBanner('success', 'Abastecimento registrado para a viagem.');
+    setFuelForm({ odometer: '', liters: '' });
+    setShowFuelForm(false);
   }
 
   if (loading) {
@@ -924,49 +1085,83 @@ function App() {
                 }}
               />
             ) : (
-              <>
-                <div className="filter-row">
-                  <input placeholder="Buscar por nome ou CPF" value={clientsHook.operatorClientFilter} onChange={(event) => {
-                    setActiveNav('solicitacoes');
-                    setClientFilter(event.target.value);
-                    if (!session?.token) return;
-                    if (!event.target.value || event.target.value.length >= 3) {
-                      refreshClients(session.token, event.target.value).catch(() => undefined);
-                    }
-                  }} />
-                </div>
-                <div className="admin-table">
-                  <div className="admin-row admin-row-head">
-                    <span>Paciente</span>
-                    <span>CPF</span>
-                    <span>Telefone</span>
-                    <span>CEP</span>
-                    <span>Endereço</span>
+              <div className="grid two-col operator-patients">
+                <div>
+                  <div className="filter-row">
+                    <input placeholder="Buscar por nome ou CPF" value={clientsHook.operatorClientFilter} onChange={(event) => {
+                      setActiveNav('solicitacoes');
+                      setClientFilter(event.target.value);
+                      if (!session?.token) return;
+                      if (!event.target.value || event.target.value.length >= 3) {
+                        refreshClients(session.token, event.target.value).catch(() => undefined);
+                      }
+                    }} />
                   </div>
-                  <div className="admin-table-body operator-scroll">
-                    {clients.length ? (
-                      clients.map((client) => (
-                        <div className="admin-row" key={client.id} onClick={() => openClientModal(client)}>
-                          <div className="admin-user">
-                            <span className="admin-avatar">{getInitials(client.name ?? '')}</span>
-                            <strong>{client.name}</strong>
+                  <div className="admin-table">
+                    <div className="admin-row admin-row-head">
+                      <span>Paciente</span>
+                      <span>CPF</span>
+                      <span>Telefone</span>
+                      <span>CEP</span>
+                      <span>Endereço</span>
+                    </div>
+                    <div className="admin-table-body operator-scroll">
+                      {clients.length ? (
+                        clients.map((client) => (
+                          <div className="admin-row" key={client.id} onClick={() => openClientModal(client)}>
+                            <div className="admin-user">
+                              <span className="admin-avatar">{getInitials(client.name ?? '')}</span>
+                              <strong>{client.name}</strong>
+                            </div>
+                            <span>{formatDocument(client.document)}</span>
+                            <span>{client.phone || '-'}</span>
+                            <span>{formatCep(client.cep ?? '') || '-'}</span>
+                            <span>{client.address || '-'}</span>
                           </div>
-                          <span>{formatDocument(client.document)}</span>
-                          <span>{client.phone || '-'}</span>
-                          <span>{formatCep(client.cep ?? '') || '-'}</span>
-                          <span>{client.address || '-'}</span>
+                        ))
+                      ) : (
+                        <div className="empty-state">
+                          <div className="empty-icon"></div>
+                          <strong>Nenhum paciente encontrado</strong>
+                          <p>Use a busca acima para localizar um CPF cadastrado.</p>
                         </div>
-                      ))
-                    ) : (
-                      <div className="empty-state">
-                        <div className="empty-icon"></div>
-                        <strong>Nenhum paciente encontrado</strong>
-                        <p>Use a busca acima para localizar um CPF cadastrado.</p>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
-              </>
+                <article className="glass-card panel-card operator-client-form">
+                  <div className="section-head">
+                    <p className="eyebrow">Cadastro rápido</p>
+                    <h3>{activeClientId ? 'Editar paciente' : 'Novo paciente'}</h3>
+                  </div>
+                  <form className="request-form" onSubmit={activeClientId ? handleUpdateClient : handleCreateClient}>
+                    <input placeholder="Nome completo" value={clientForm.name} onChange={(event) => setClientForm({ ...clientForm, name: event.target.value })} />
+                    <input placeholder="CPF" value={clientForm.document} onChange={(event) => setClientForm({ ...clientForm, document: formatDocument(event.target.value) })} />
+                    <input placeholder="Telefone" value={clientForm.phone} onChange={(event) => setClientForm({ ...clientForm, phone: event.target.value })} />
+                    <div className="input-action">
+                      <input placeholder="CEP" value={clientForm.cep} onChange={(event) => setClientForm({ ...clientForm, cep: formatCep(event.target.value) })} onBlur={(event) => handleLookupCep(event.target.value, (data) => setClientForm((current) => ({ ...current, street: data.street || current.street, neighborhood: data.neighborhood || current.neighborhood, city: data.city || current.city })))} />
+                      <button className="cta ghost" type="button" onClick={() => handleLookupCep(clientForm.cep, (data) => setClientForm((current) => ({ ...current, street: data.street || current.street, neighborhood: data.neighborhood || current.neighborhood, city: data.city || current.city })))}>
+                        Buscar CEP
+                      </button>
+                    </div>
+                    <input placeholder="Rua" value={clientForm.street} onChange={(event) => setClientForm({ ...clientForm, street: event.target.value })} />
+                    <input placeholder="Número" value={clientForm.number} onChange={(event) => setClientForm({ ...clientForm, number: event.target.value })} />
+                    <input placeholder="Bairro" value={clientForm.neighborhood} onChange={(event) => setClientForm({ ...clientForm, neighborhood: event.target.value })} />
+                    <input placeholder="Cidade" value={clientForm.city} onChange={(event) => setClientForm({ ...clientForm, city: event.target.value })} />
+                    <div className="form-actions">
+                      <button className="cta ghost" type="button" onClick={() => {
+                        setActiveClientId(null);
+                        setClientForm({ name: '', document: '', phone: '', cep: '', street: '', number: '', neighborhood: '', city: '', address: '' });
+                      }}>
+                        Limpar
+                      </button>
+                      <button className="cta" type="submit">
+                        {activeClientId ? 'Salvar alterações' : 'Cadastrar paciente'}
+                      </button>
+                    </div>
+                  </form>
+                </article>
+              </div>
             )}
           </section>
         )}
@@ -1070,11 +1265,11 @@ function App() {
         )}
 
         {session.role === 'gerente' && (
-          <section className="glass-card panel-card" id="distribuicao">
+          <section className="glass-card panel-card manager-console" id="distribuicao">
             <div className="section-head">
               <p className="eyebrow">Centro de Controle Operacional</p>
               <div className="section-toolbar">
-                <h2>Distribuição de Viagens</h2>
+                <h2>Distribuição de viagens</h2>
                 <div className="toolbar-actions">
                   <button className="cta ghost" type="button" onClick={() => setAdvancedFilters({ ...advancedFilters, statuses: ['aguardando_distribuicao'] })}>
                     Pendentes ({visibleRequests.filter(r => r.status === 'aguardando_distribuicao').length})
@@ -1089,307 +1284,312 @@ function App() {
               </div>
             </div>
 
-            {/* Dashboard Overview */}
-            <div className="manager-dashboard">
-              <div className="dashboard-metrics">
-                <div className="metric-card">
-                  <div className="metric-icon">🚗</div>
-                  <div className="metric-content">
-                    <strong>{visibleRequests.filter(r => r.status === 'aguardando_distribuicao').length}</strong>
-                    <span>Aguardando motorista</span>
-                  </div>
+            <div className="manager-metrics">
+              <div className="metric-card">
+                <div className="metric-icon">🚗</div>
+                <div className="metric-content">
+                  <strong>{visibleRequests.filter(r => r.status === 'aguardando_distribuicao').length}</strong>
+                  <span>Aguardando motorista</span>
                 </div>
-                <div className="metric-card">
-                  <div className="metric-icon">📅</div>
-                  <div className="metric-content">
-                    <strong>{visibleRequests.filter(r => r.status === 'agendada').length}</strong>
-                    <span>Agendadas hoje</span>
-                  </div>
+              </div>
+              <div className="metric-card">
+                <div className="metric-icon">📅</div>
+                <div className="metric-content">
+                  <strong>{visibleRequests.filter(r => r.status === 'agendada').length}</strong>
+                  <span>Agendadas hoje</span>
                 </div>
-                <div className="metric-card">
-                  <div className="metric-icon">🏃</div>
-                  <div className="metric-content">
-                    <strong>{visibleRequests.filter(r => r.status === 'em_rota').length}</strong>
-                    <span>Em andamento</span>
-                  </div>
+              </div>
+              <div className="metric-card">
+                <div className="metric-icon">🏃</div>
+                <div className="metric-content">
+                  <strong>{visibleRequests.filter(r => r.status === 'em_rota').length}</strong>
+                  <span>Em andamento</span>
                 </div>
-                <div className="metric-card">
-                  <div className="metric-icon">✅</div>
-                  <div className="metric-content">
-                    <strong>{visibleRequests.filter(r => r.status === 'concluida').length}</strong>
-                    <span>Concluídas hoje</span>
-                  </div>
+              </div>
+              <div className="metric-card">
+                <div className="metric-icon">✅</div>
+                <div className="metric-content">
+                  <strong>{visibleRequests.filter(r => r.status === 'concluida').length}</strong>
+                  <span>Concluídas hoje</span>
                 </div>
               </div>
             </div>
 
-            {/* Advanced Filters */}
-            <div className="manager-filters">
-              <AdvancedFilters
-                onFiltersChange={setAdvancedFilters}
-                availableDrivers={availableDrivers}
-                availableVehicles={availableVehicles}
-              />
-            </div>
+            <div className="manager-layout">
+              <div className="manager-col backlog">
+                <div className="section-head compact">
+                  <p className="eyebrow">Fila do dia</p>
+                  <h3>Solicitações disponíveis</h3>
+                </div>
+                <div className="filter-row">
+                  <input
+                    type="search"
+                    placeholder="Buscar por paciente, protocolo ou destino..."
+                    value={requestFilter}
+                    onChange={(event) => setRequestFilter(event.target.value)}
+                    aria-label="Filtrar solicitações"
+                  />
+                </div>
+                <AdvancedFilters
+                  onFiltersChange={setAdvancedFilters}
+                  availableDrivers={availableDrivers}
+                  availableVehicles={availableVehicles}
+                />
+                <div className="manager-request-list">
+                  {backlogRequests.length ? (
+                    backlogRequests.map((request) => (
+                      <article
+                        key={request.id}
+                        className="manager-request-card"
+                        draggable
+                        onDragStart={(event) => handleRouteDragStart(event, request.id, 'backlog')}
+                        onClick={() => setRouteActiveId(request.id)}
+                      >
+                        <div className="manager-request-main">
+                          <strong>{request.clientName}</strong>
+                          <small>{request.destinationFacility || request.destination}</small>
+                          <small>{formatSchedule(request.departureAt)}</small>
+                        </div>
+                        <div className="manager-request-meta">
+                          <span className={`status status-${request.status}`}>{statusLabels[request.status]}</span>
+                          <button className="cta ghost" type="button" onClick={(event) => { event.stopPropagation(); handleRouteAdd(request.id); }}>
+                            Adicionar
+                          </button>
+                        </div>
+                      </article>
+                    ))
+                  ) : (
+                    <div className="empty-state">
+                      <div className="empty-icon">📋</div>
+                      <strong>Nenhuma solicitação disponível</strong>
+                      <p>Ajuste os filtros ou aguarde novas solicitações.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
 
-            {/* Requests List */}
-            <div className="manager-requests-list">
-              {visibleRequests.length ? (
-                <div className="requests-table">
-                  <div className="table-header">
-                    <div className="table-row">
-                      <span>Prioridade</span>
-                      <span>Protocolo</span>
-                      <span>Paciente</span>
-                      <span>Horário</span>
-                      <span>Destino</span>
-                      <span>Motorista</span>
-                      <span>Veículo</span>
-                      <span>Status</span>
-                      <span>Ações</span>
+              <div className="manager-col route">
+                <div className="section-head compact">
+                  <p className="eyebrow">Rota do motorista</p>
+                  <h3>Montagem da rota</h3>
+                </div>
+                <div className="route-config-grid">
+                  <label>
+                    <span>Motorista</span>
+                    <input
+                      list="route-drivers"
+                      value={routeDriver}
+                      onChange={(event) => setRouteDriver(event.target.value)}
+                      placeholder="Selecione o motorista"
+                    />
+                    <datalist id="route-drivers">
+                      {availableDrivers.map((driver) => (
+                        <option key={driver} value={driver} />
+                      ))}
+                    </datalist>
+                  </label>
+                  <label>
+                    <span>Veículo</span>
+                    <input
+                      list="route-vehicles"
+                      value={routeVehicle}
+                      onChange={(event) => setRouteVehicle(event.target.value)}
+                      placeholder="Selecione o veículo"
+                    />
+                    <datalist id="route-vehicles">
+                      {availableVehicles.map((vehicle) => (
+                        <option key={vehicle} value={vehicle} />
+                      ))}
+                    </datalist>
+                  </label>
+                  <label>
+                    <span>Data da rota</span>
+                    <input type="date" value={routeDate} onChange={(event) => setRouteDate(event.target.value)} />
+                  </label>
+                  <label>
+                    <span>Horário base</span>
+                    <input type="time" value={routeStartTime} onChange={(event) => setRouteStartTime(formatTime(event.target.value))} />
+                  </label>
+                  <label>
+                    <span>Gap estimado</span>
+                    <input
+                      type="number"
+                      min={5}
+                      max={90}
+                      value={routeGapMinutes}
+                      onChange={(event) => setRouteGapMinutes(Number(event.target.value || 0))}
+                    />
+                  </label>
+                </div>
+                <div
+                  className={`route-dropzone ${routeDropActive ? 'active' : ''}`}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    setRouteDropActive(true);
+                  }}
+                  onDragLeave={() => setRouteDropActive(false)}
+                  onDrop={(event) => handleRouteDrop(event)}
+                >
+                  <div className="route-list">
+                    {routeItems.length ? (
+                      routeItems.map((request, index) => {
+                        if (!request) return null;
+                        const estimated = buildRouteDeparture(index);
+                        return (
+                          <div
+                            key={request.id}
+                            className={`route-item ${routeActiveId === request.id ? 'active' : ''}`}
+                            draggable
+                            onDragStart={(event) => handleRouteDragStart(event, request.id, 'route')}
+                            onDragOver={(event) => event.preventDefault()}
+                            onDrop={(event) => handleRouteDrop(event, request.id)}
+                            onClick={() => setRouteActiveId(request.id)}
+                          >
+                            <div className="route-order">#{index + 1}</div>
+                            <div className="route-content">
+                              <strong>{request.clientName}</strong>
+                              <small>{request.destinationFacility || request.destination}</small>
+                              <small>{estimated ? `Saída est.: ${estimated}` : `Saída: ${formatSchedule(request.departureAt)}`}</small>
+                            </div>
+                            <div className="route-actions">
+                              <button className="cta ghost" type="button" onClick={(event) => { event.stopPropagation(); moveRoute(request.id, 'up'); }}>
+                                ↑
+                              </button>
+                              <button className="cta ghost" type="button" onClick={(event) => { event.stopPropagation(); moveRoute(request.id, 'down'); }}>
+                                ↓
+                              </button>
+                              <button className="cta ghost danger" type="button" onClick={(event) => { event.stopPropagation(); handleRouteRemove(request.id); }}>
+                                Remover
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="empty-state">
+                        <div className="empty-icon">🧭</div>
+                        <strong>Arraste solicitações para montar a rota</strong>
+                        <p>Selecione motorista e veículo antes de começar.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="route-actions-footer">
+                  <button className="cta" type="button" onClick={handleRouteSave}>
+                    Salvar rota
+                  </button>
+                  <button className="cta ghost" type="button" onClick={handleRouteClear}>
+                    Limpar rota
+                  </button>
+                </div>
+              </div>
+
+              <div className="manager-col summary">
+                <div className="section-head compact">
+                  <p className="eyebrow">Resumo rápido</p>
+                  <h3>Paciente em foco</h3>
+                </div>
+                {routeActive ? (
+                  <div className="route-summary">
+                    <strong>{routeActive.clientName}</strong>
+                    <small>{routeActive.destinationFacility || routeActive.destination}</small>
+                    <small>CPF: {formatDocument(routeActive.document)}</small>
+                    <small>Telefone: {routeActive.phoneVisible ? routeActive.phone : 'Oculto'}</small>
+                    <small>Embarque: {formatAddressDisplay(routeActive.boardingPoint, routeActive.boardingCep ?? routeActive.clientCep)}</small>
+                    <button className="cta ghost" type="button" onClick={() => { setActiveRequestId(routeActive.id); setActiveNav('detalhes'); }}>
+                      Abrir detalhes completos
+                    </button>
+                  </div>
+                ) : (
+                  <div className="empty-state">
+                    <div className="empty-icon"></div>
+                    <strong>Selecione uma solicitação</strong>
+                    <p>Toque em um card para ver o resumo rápido.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {(session.role === 'gerente' || session.role === 'administrador') && (
+          <section className="glass-card panel-card" id="frota">
+            <div className="section-head">
+              <p className="eyebrow">Frota operacional</p>
+              <h2>Painel do veículo</h2>
+            </div>
+            <div className="grid two-col fleet-layout">
+              <div className="fleet-list">
+                {vehicleFleet.map((vehicle) => (
+                  <article
+                    key={vehicle.id}
+                    className={`fleet-card ${activeVehicleId === vehicle.id ? 'active' : ''}`}
+                    onClick={() => setActiveVehicleId(vehicle.id)}
+                  >
+                    <div className="fleet-main">
+                      <strong>{vehicle.name}</strong>
+                      <small>Placa {vehicle.plate} · {vehicle.fuel}</small>
+                    </div>
+                    <div className="fleet-meta">
+                      <span>Km total: {vehicle.odometer.toLocaleString('pt-BR')}</span>
+                      <span>Autonomia: {vehicle.autonomyKm} km</span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+              {activeVehicle ? (
+                <div className="fleet-detail">
+                  <div className="section-head compact">
+                    <p className="eyebrow">Telemetria</p>
+                    <h3>{activeVehicle.name}</h3>
+                  </div>
+                  <div className="fleet-metrics">
+                    <div>
+                      <span>Hodômetro</span>
+                      <strong>{activeVehicle.odometer.toLocaleString('pt-BR')} km</strong>
+                    </div>
+                    <div>
+                      <span>Combustível</span>
+                      <strong>{activeVehicle.fuel}</strong>
+                    </div>
+                    <div>
+                      <span>Último abastecimento</span>
+                      <strong>{activeVehicle.lastFuel.date} · {activeVehicle.lastFuel.liters} L</strong>
+                    </div>
+                    <div>
+                      <span>Autonomia estimada</span>
+                      <strong>{activeVehicle.autonomyKm} km</strong>
                     </div>
                   </div>
-                  <div className="table-body">
-                    {visibleRequests.map((request) => {
-                      const isUrgent = new Date(request.departureAt).getTime() - Date.now() < 2 * 60 * 60 * 1000; // 2 hours
-                      const hasConflict = availableDrivers.includes(request.driver) && availableVehicles.includes(request.vehicle);
-                      return (
-                        <div className={`table-row ${request.id === activeRequestId ? 'selected' : ''} ${isUrgent ? 'urgent' : ''}`} key={request.id} onClick={() => setActiveRequestId(request.id)}>
-                          <div className="priority-indicator">
-                            {isUrgent && <span className="urgent-badge">URGENTE</span>}
-                            {request.status === 'aguardando_distribuicao' && <span className="pending-badge">PENDENTE</span>}
-                          </div>
-                          <strong>{request.protocol}</strong>
-                          <div className="patient-info">
-                            <strong>{request.clientName}</strong>
-                            <small>{request.document}</small>
-                          </div>
-                          <span>{formatSchedule(request.departureAt)}</span>
-                          <div className="destination-info">
-                            <strong>{request.destinationFacility || request.destination}</strong>
-                            <small>{request.destination}</small>
-                          </div>
-                          <span className={request.driver ? 'assigned' : 'unassigned'}>{request.driver || 'Não atribuído'}</span>
-                          <span className={request.vehicle ? 'assigned' : 'unassigned'}>{request.vehicle || 'Não atribuído'}</span>
-                          <span className={`status status-${request.status}`}>{statusLabels[request.status]}</span>
-                          <div className="quick-actions">
-                            <button className="action-btn" onClick={(e) => { e.stopPropagation(); setActiveRequestId(request.id); }} title="Editar distribuição">
-                              ✏️
-                            </button>
-                            <button className="action-btn" onClick={(e) => { e.stopPropagation(); setActiveRequestId(request.id); }} title="Ver detalhes">
-                              👁️
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
+                  <div className="fleet-section">
+                    <h4>Manutenção</h4>
+                    <div className="fleet-maintenance">
+                      <span>Troca de óleo: última {activeVehicle.oil.lastKm.toLocaleString('pt-BR')} km</span>
+                      <span>Próxima em {activeVehicle.oil.nextKm.toLocaleString('pt-BR')} km</span>
+                    </div>
+                    <ul>
+                      {activeVehicle.maintenance.map((item) => (
+                        <li key={`${item.date}-${item.type}`}>{item.date} · {item.type} {item.notes ? `- ${item.notes}` : ''}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="fleet-section">
+                    <h4>Histórico de viagens</h4>
+                    <ul>
+                      {activeVehicle.trips.map((trip) => (
+                        <li key={`${trip.date}-${trip.destination}`}>{trip.date} · {trip.driver} · {trip.km} km · {trip.destination}</li>
+                      ))}
+                    </ul>
                   </div>
                 </div>
               ) : (
                 <div className="empty-state">
-                  <div className="empty-icon">📋</div>
-                  <strong>Nenhuma solicitação encontrada</strong>
-                  <p>Ajuste os filtros ou aguarde novas solicitações do operador.</p>
+                  <div className="empty-icon"></div>
+                  <strong>Selecione um veículo</strong>
+                  <p>Escolha um veículo para visualizar telemetria e histórico.</p>
                 </div>
               )}
             </div>
-
-            {/* Assignment Panel */}
-            {activeRequest && (
-              <div className="assignment-modal">
-                <div className="modal-header">
-                  <div className="modal-title">
-                    <h3>Configurar Viagem</h3>
-                    <p>{activeRequest.protocol} - {activeRequest.clientName}</p>
-                  </div>
-                  <button className="close-btn" onClick={() => setActiveRequestId(null)}>✕</button>
-                </div>
-
-                <form className="assignment-form" onSubmit={handleSaveTrip}>
-                  <div className="form-sections">
-                    {/* Patient & Trip Info */}
-                    <div className="form-section">
-                      <h4>Informações da Viagem</h4>
-                      <div className="info-grid">
-                        <div className="info-item">
-                          <label>Paciente</label>
-                          <span>{activeRequest.clientName}</span>
-                        </div>
-                        <div className="info-item">
-                          <label>CPF</label>
-                          <span>{formatDocument(activeRequest.document)}</span>
-                        </div>
-                        <div className="info-item">
-                          <label>Telefone</label>
-                          <span>{activeRequest.phoneVisible ? activeRequest.phone : 'Oculto'}</span>
-                        </div>
-                        <div className="info-item">
-                          <label>Destino</label>
-                          <span>{activeRequest.destinationFacility || activeRequest.destination}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Address Section */}
-                    <div className="form-section">
-                      <h4>Endereço de Embarque</h4>
-                      <div className="address-grid">
-                        <label>
-                          <span>CEP</span>
-                          <div className="input-action">
-                            <input value={managerCep} onChange={(event) => setManagerCep(formatCep(event.target.value))} />
-                            <button className="cta ghost" type="button" onClick={() => handleLookupCep(managerCep, (data) => { setManagerStreet(data.street || managerStreet); setManagerNeighborhood(data.neighborhood || managerNeighborhood); setManagerCity(data.city || managerCity); })}>
-                              🔍 Buscar
-                            </button>
-                          </div>
-                        </label>
-                        <label>
-                          <span>Rua</span>
-                          <input value={managerStreet} onChange={(event) => setManagerStreet(event.target.value)} />
-                        </label>
-                        <label>
-                          <span>Número</span>
-                          <input value={managerNumber} onChange={(event) => setManagerNumber(event.target.value)} />
-                        </label>
-                        <label>
-                          <span>Bairro</span>
-                          <input value={managerNeighborhood} onChange={(event) => setManagerNeighborhood(event.target.value)} />
-                        </label>
-                        <label>
-                          <span>Cidade</span>
-                          <input value={managerCity} onChange={(event) => setManagerCity(event.target.value)} />
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* Assignment Section */}
-                    <div className="form-section">
-                      <h4>Atribuição Operacional</h4>
-                      <div className="assignment-grid">
-                        <label>
-                          <span>Motorista</span>
-                          <input
-                            list="drivers-list"
-                            value={tripForm.driver}
-                            onChange={(event) => setTripForm({ ...tripForm, driver: event.target.value })}
-                            placeholder="Selecione ou digite o nome"
-                            className={tripForm.driver ? 'filled' : ''}
-                          />
-                          <datalist id="drivers-list">
-                            {availableDrivers.map((driver) => (
-                              <option key={driver} value={driver} />
-                            ))}
-                          </datalist>
-                        </label>
-                        <label>
-                          <span>Veículo</span>
-                          <input
-                            list="vehicles-list"
-                            value={tripForm.vehicle}
-                            onChange={(event) => setTripForm({ ...tripForm, vehicle: event.target.value })}
-                            placeholder="Selecione ou digite a placa/modelo"
-                            className={tripForm.vehicle ? 'filled' : ''}
-                          />
-                          <datalist id="vehicles-list">
-                            {availableVehicles.map((vehicle) => (
-                              <option key={vehicle} value={vehicle} />
-                            ))}
-                          </datalist>
-                        </label>
-                        <label>
-                          <span>Status Atual</span>
-                          <select value={tripForm.status} onChange={(event) => setTripForm({ ...tripForm, status: event.target.value as RequestStatus })}>
-                            <option value="aguardando_distribuicao">Aguardando distribuição</option>
-                            <option value="agendada">Agendada</option>
-                            <option value="em_rota">Em rota</option>
-                            <option value="concluida">Concluída</option>
-                            <option value="cancelada">Cancelada</option>
-                          </select>
-                        </label>
-                        <label>
-                          <span>Telefone Visível</span>
-                          <select value={tripForm.phoneVisible ? 'sim' : 'nao'} onChange={(event) => setTripForm({ ...tripForm, phoneVisible: event.target.value === 'sim' })}>
-                            <option value="sim">Sim - Motorista pode ligar</option>
-                            <option value="nao">Não - Manter oculto</option>
-                          </select>
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* Schedule Section */}
-                    <div className="form-section">
-                      <h4>Horários</h4>
-                      <div className="schedule-grid">
-                        <label>
-                          <span>Data e Hora da Viagem</span>
-                          <div className="input-group">
-                            <input type="date" value={tripDate} onChange={(event) => setTripDate(event.target.value)} />
-                            <input type="time" value={tripTime} onChange={(event) => setTripTime(formatTime(event.target.value))} />
-                          </div>
-                        </label>
-                        <label>
-                          <span>Data e Hora da Consulta</span>
-                          <div className="input-group">
-                            <input type="date" value={tripConsultDate} onChange={(event) => setTripConsultDate(event.target.value)} />
-                            <input type="time" value={tripConsultTime} onChange={(event) => setTripConsultTime(formatTime(event.target.value))} />
-                          </div>
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* Notes Section */}
-                    <div className="form-section">
-                      <h4>Observações</h4>
-                      <label className="full-width">
-                        <textarea
-                          value={tripForm.notes}
-                          onChange={(event) => setTripForm({ ...tripForm, notes: event.target.value })}
-                          placeholder="Adicione observações importantes para o motorista..."
-                          rows={3}
-                        />
-                      </label>
-                    </div>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="form-actions">
-                    <button className="cta" type="submit">
-                      💾 Salvar Alterações
-                    </button>
-                    {activeRequest.status === 'aguardando_distribuicao' && tripForm.driver && tripForm.vehicle && (
-                      <button className="cta success" type="button" onClick={async () => {
-                        await patchRequest(activeRequest.id, { status: 'agendada', driver: tripForm.driver, vehicle: tripForm.vehicle });
-                        showBanner('success', 'Viagem distribuída e agendada com sucesso!');
-                        setActiveRequestId(null);
-                      }}>
-                        🚀 Distribuir & Agendar
-                      </button>
-                    )}
-                    {activeRequest.status === 'agendada' && (
-                      <button className="cta warning" type="button" onClick={async () => {
-                        await patchRequest(activeRequest.id, { status: 'em_rota' });
-                        showBanner('success', 'Viagem iniciada - motorista notificado!');
-                        setActiveRequestId(null);
-                      }}>
-                        ▶️ Iniciar Rota
-                      </button>
-                    )}
-                    {activeRequest.status === 'em_rota' && (
-                      <button className="cta success" type="button" onClick={async () => {
-                        await patchRequest(activeRequest.id, { status: 'concluida' });
-                        showBanner('success', 'Viagem concluída com sucesso!');
-                        setActiveRequestId(null);
-                      }}>
-                        ✅ Marcar Concluída
-                      </button>
-                    )}
-                    <button className="cta ghost" type="button" onClick={() => setActiveRequestId(null)}>
-                      ❌ Cancelar
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
           </section>
         )}
 
@@ -1462,6 +1662,36 @@ function App() {
                   <a className="cta" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(buildMapQuery(activeRequest) || activeRequest.boardingPoint)}`} target="_blank" rel="noreferrer">
                     Abrir mapa
                   </a>
+                  <div className="driver-fuel">
+                    <div className="section-head compact">
+                      <p className="eyebrow">Abastecimento</p>
+                      <div className="section-toolbar">
+                        <h3>Registro por viagem</h3>
+                        <button className="cta ghost" type="button" onClick={() => setShowFuelForm((current) => !current)}>
+                          {showFuelForm ? 'Ocultar' : 'Registrar'}
+                        </button>
+                      </div>
+                    </div>
+                    {showFuelForm ? (
+                      <form className="request-form compact-form" onSubmit={handleDriverFuelSubmit}>
+                        <input
+                          placeholder="Km do hodômetro"
+                          value={fuelForm.odometer}
+                          onChange={(event) => setFuelForm((current) => ({ ...current, odometer: event.target.value }))}
+                        />
+                        <input
+                          placeholder="Litros abastecidos"
+                          value={fuelForm.liters}
+                          onChange={(event) => setFuelForm((current) => ({ ...current, liters: event.target.value }))}
+                        />
+                        <button className="cta" type="submit">
+                          Salvar registro
+                        </button>
+                      </form>
+                    ) : (
+                      <p className="helper-text">Registre odômetro e litros para manter o histórico do veículo.</p>
+                    )}
+                  </div>
                 </div>
               ) : null}
             </article>
