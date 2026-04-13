@@ -512,7 +512,9 @@ function App() {
 
   function addMinutesToTime(time: string, minutes: number) {
     if (!time) return '';
-    const [hours, mins] = time.split(':').map(Number);
+    const [hoursPart = '', minsPart = ''] = time.split(':');
+    const hours = Number(hoursPart);
+    const mins = Number(minsPart);
     if (Number.isNaN(hours) || Number.isNaN(mins)) return time;
     const total = hours * 60 + mins + minutes;
     const normalized = ((total % (24 * 60)) + (24 * 60)) % (24 * 60);
@@ -571,6 +573,7 @@ function App() {
       const targetIndex = direction === 'up' ? index - 1 : index + 1;
       if (targetIndex < 0 || targetIndex >= next.length) return current;
       const [item] = next.splice(index, 1);
+      if (!item) return current;
       next.splice(targetIndex, 0, item);
       return next;
     });
@@ -600,12 +603,12 @@ function App() {
     setRouteActiveId(null);
   }
 
-  function handleRouteDragStart(event: DragEvent<HTMLDivElement>, requestId: string, origin: 'backlog' | 'route') {
+  function handleRouteDragStart(event: DragEvent<HTMLElement>, requestId: string, origin: 'backlog' | 'route') {
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', `${origin}:${requestId}`);
   }
 
-  function handleRouteDrop(event: DragEvent<HTMLDivElement>, targetId?: string) {
+  function handleRouteDrop(event: DragEvent<HTMLElement>, targetId?: string) {
     event.preventDefault();
     setRouteDropActive(false);
     const payload = event.dataTransfer.getData('text/plain');
