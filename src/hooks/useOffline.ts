@@ -44,7 +44,7 @@ export function useServiceWorker() {
     if ('serviceWorker' in navigator) {
       setIsSupported(true);
 
-      navigator.serviceWorker.register('/sw.js')
+      navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
         .then(registration => {
           setIsRegistered(true);
           console.log('Service Worker registered:', registration);

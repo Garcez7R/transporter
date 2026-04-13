@@ -1,11 +1,9 @@
-const CACHE_NAME = 'transporter-v2';
-const STATIC_CACHE = 'transporter-static-v2';
-const DYNAMIC_CACHE = 'transporter-dynamic-v2';
-const API_CACHE = 'transporter-api-v2';
+const CACHE_NAME = 'transporter-v3';
+const STATIC_CACHE = 'transporter-static-v3';
+const DYNAMIC_CACHE = 'transporter-dynamic-v3';
+const API_CACHE = 'transporter-api-v3';
 
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
   '/manifest.webmanifest',
   '/icon-192.svg',
   '/icon-512.svg',
@@ -50,9 +48,18 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  const isHtmlRequest = request.mode === 'navigate' ||
+    (request.headers.get('accept') && request.headers.get('accept').includes('text/html'));
+
   // API requests - Network first with cache fallback
   if (API_ENDPOINTS.some(endpoint => url.pathname.startsWith(endpoint))) {
     event.respondWith(networkFirst(request, API_CACHE));
+    return;
+  }
+
+  // HTML pages - Network first with cache fallback
+  if (isHtmlRequest) {
+    event.respondWith(networkFirst(request, DYNAMIC_CACHE));
     return;
   }
 
@@ -62,14 +69,15 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // HTML pages - Network first with cache fallback
-  if (request.headers.get('accept').includes('text/html')) {
-    event.respondWith(networkFirst(request, DYNAMIC_CACHE));
-    return;
-  }
-
   // Default - Cache first with network fallback
   event.respondWith(cacheFirst(request, DYNAMIC_CACHE));
+});
+
+// Listen for skip waiting commands (optional manual update flow)
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 // Cache first strategy
