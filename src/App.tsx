@@ -900,7 +900,7 @@ function App() {
                     type="button"
                     onClick={() => setOperatorView('recentes')}
                   >
-                    Solicitações recentes
+                    Recentes
                   </button>
                 </div>
               </div>
@@ -1060,7 +1060,7 @@ function App() {
                     <span>Paciente</span>
                     <span>Saída</span>
                     <span>Status</span>
-                    <span>Ações</span>
+                    <span>Ações rápidas</span>
                   </div>
                   <div className="admin-table-body operator-scroll">
                     {sortedRequests.length ? (
@@ -1101,10 +1101,10 @@ function App() {
                         </div>
                       ))
                     ) : (
-                      <div className="empty-state">
+                      <div className="empty-state compact">
                         <div className="empty-icon"></div>
-                        <strong>Nenhuma solicitação encontrada</strong>
-                        <p>{requestFilter ? 'Tente ajustar os filtros de busca.' : 'As solicitações aparecerão aqui quando forem criadas.'}</p>
+                        <strong>Sem solicitações no recorte</strong>
+                        <p>{requestFilter ? 'Ajuste o filtro ou limpe a busca.' : 'As solicitações aparecem assim que forem criadas.'}</p>
                       </div>
                     )}
                   </div>
@@ -1413,24 +1413,25 @@ function App() {
                       </article>
                     ))
                   ) : (
-                    <div className="empty-state">
-                      <div className="empty-icon">📋</div>
-                      <strong>Nenhuma solicitação disponível</strong>
-                      <p>Ajuste os filtros ou aguarde novas solicitações.</p>
-                    </div>
-                  )}
+                <div className="empty-state compact">
+                  <div className="empty-icon">📋</div>
+                  <strong>Sem solicitações pendentes</strong>
+                  <p>Ajuste filtros ou aguarde novas entradas do operador.</p>
                 </div>
-              </div>
+              )}
+            </div>
+          </div>
 
-              <div className="manager-col route">
-                <div className="section-head compact">
-                  <p className="eyebrow">Rota do motorista</p>
-                  <h3>Montagem da rota</h3>
-                </div>
-                <div className="route-config-grid">
-                  <label>
-                    <span>Motorista</span>
-                    <input
+          <div className="manager-col route">
+            <div className="section-head compact">
+              <p className="eyebrow">Rota do motorista</p>
+              <h3>Montagem da rota</h3>
+            </div>
+            <p className="helper-text">Defina motorista, veículo e data para montar a fila operacional do dia.</p>
+            <div className="route-config-grid">
+              <label>
+                <span>Motorista</span>
+                <input
                       list="route-drivers"
                       value={routeDriver}
                       onChange={(event) => setRouteDriver(event.target.value)}
@@ -1464,14 +1465,14 @@ function App() {
                     <span>Horário base</span>
                     <input type="time" value={routeStartTime} onChange={(event) => setRouteStartTime(formatTime(event.target.value))} />
                   </label>
-                  <label>
-                    <span>Gap estimado</span>
-                    <input
-                      type="number"
-                      min={5}
-                      max={90}
-                      value={routeGapMinutes}
-                      onChange={(event) => setRouteGapMinutes(Number(event.target.value || 0))}
+              <label>
+                <span>Intervalo (min)</span>
+                <input
+                  type="number"
+                  min={5}
+                  max={90}
+                  value={routeGapMinutes}
+                  onChange={(event) => setRouteGapMinutes(Number(event.target.value || 0))}
                     />
                   </label>
                 </div>
@@ -1503,7 +1504,7 @@ function App() {
                             <div className="route-content">
                               <strong>{request.clientName}</strong>
                               <small>{request.destinationFacility || request.destination}</small>
-                              <small>{estimated ? `Saída est.: ${estimated}` : `Saída: ${formatSchedule(request.departureAt)}`}</small>
+                              <small>{estimated ? `Saída estimada: ${estimated}` : `Saída: ${formatSchedule(request.departureAt)}`}</small>
                             </div>
                             <div className="route-actions">
                               <button className="cta ghost" type="button" onClick={(event) => { event.stopPropagation(); moveRoute(request.id, 'up'); }}>
@@ -1522,8 +1523,8 @@ function App() {
                     ) : (
                       <div className="empty-state">
                         <div className="empty-icon">🧭</div>
-                        <strong>Arraste solicitações para montar a rota</strong>
-                        <p>Selecione motorista e veículo antes de começar.</p>
+                        <strong>Arraste para montar a rota</strong>
+                        <p>Selecione motorista/veículo para habilitar a fila.</p>
                       </div>
                     )}
                   </div>
@@ -1533,7 +1534,7 @@ function App() {
                     Salvar rota
                   </button>
                   <button className="cta ghost" type="button" onClick={handleRouteClear}>
-                    Limpar rota
+                    Limpar fila
                   </button>
                 </div>
               </div>
@@ -1541,7 +1542,7 @@ function App() {
               <div className="manager-col summary">
                 <div className="section-head compact">
                   <p className="eyebrow">Resumo rápido</p>
-                  <h3>Paciente em foco</h3>
+                  <h3>Solicitação em foco</h3>
                 </div>
                 {routeActive ? (
                   <div className="route-summary">
@@ -1555,10 +1556,10 @@ function App() {
                     </button>
                   </div>
                 ) : (
-                  <div className="empty-state">
+                  <div className="empty-state compact">
                     <div className="empty-icon"></div>
                     <strong>Selecione uma solicitação</strong>
-                    <p>Toque em um card para ver o resumo rápido.</p>
+                    <p>Toque em um card para ver o resumo.</p>
                   </div>
                 )}
               </div>
@@ -1670,7 +1671,7 @@ function App() {
                     </article>
                   ))
                 ) : (
-                  <div className="empty-state">
+                  <div className="empty-state compact">
                     <div className="empty-icon"></div>
                     <strong>Agenda livre</strong>
                     <p>{requestEmptyText}</p>

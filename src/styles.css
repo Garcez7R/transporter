@@ -545,6 +545,16 @@ h1 {
   margin-bottom: 18px;
 }
 
+.section-head.compact {
+  margin-bottom: 12px;
+}
+
+.helper-text {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0 0 12px;
+}
+
 .section-toolbar {
   display: flex;
   align-items: center;
@@ -563,6 +573,25 @@ h1 {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr);
   gap: 18px;
+}
+
+.operator-grid .request-form input,
+.operator-grid .request-form textarea,
+.operator-grid .request-form select {
+  padding: 10px 12px;
+}
+
+.operator-admin-table .admin-row {
+  padding: 12px 16px;
+}
+
+.operator-admin-table .admin-row-head {
+  padding: 12px 16px;
+}
+
+.empty-state.compact {
+  padding: 16px;
+  gap: 6px;
 }
 
 .operator-status-bar {
