@@ -1875,6 +1875,7 @@ function App() {
         />
 
         <ToastStack toasts={toasts} />
+        <ConfirmationModal />
       </main>
     </div>
       </LoadingOverlay>
