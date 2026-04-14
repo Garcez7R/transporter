@@ -5,6 +5,7 @@ export type Env = {
   SPLUNK_HEC_TOKEN?: string;
   VAPID_PUBLIC_KEY?: string;
   VAPID_PRIVATE_KEY?: string;
+  VAPID_SUBJECT?: string;
 };
 
 export type RequestHandler = (request: Request, env: Env) => Promise<Response>;

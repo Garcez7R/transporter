@@ -1,6 +1,7 @@
 import { json } from '../../_shared/response';
 import { getSession } from '../../_shared/session';
 import type { Env } from '../../_shared/types';
+import { sendWebPush } from '../../_shared/webpush';
 
 type DispatchBody = {
   title?: string;
@@ -39,6 +40,46 @@ export async function onRequestPost({ request, env }: { request: Request; env: E
         session.name
       )
       .run();
+    const rows = await env.DB.prepare(
+      `SELECT endpoint, p256dh, auth
+       FROM push_subscriptions
+       WHERE (? IS NULL OR role = ?)
+       AND (? IS NULL OR user_id = ?)`
+    )
+      .bind(payload.targetRole ?? null, payload.targetRole ?? null, payload.targetUserId ?? null, payload.targetUserId ?? null)
+      .all();
+
+    const subscriptions = (rows.results ?? []).map((row) => ({
+      endpoint: String(row.endpoint),
+      keys: {
+        p256dh: String(row.p256dh),
+        auth: String(row.auth)
+      }
+    }));
+
+    const vapidPublicKey = env.VAPID_PUBLIC_KEY;
+    const vapidPrivateKey = env.VAPID_PRIVATE_KEY;
+    const vapidSubject = env.VAPID_SUBJECT ?? 'mailto:admin@transporter.app';
+
+    if (vapidPublicKey && vapidPrivateKey && subscriptions.length) {
+      await Promise.all(
+        subscriptions.map((subscription) =>
+          sendWebPush(
+            subscription,
+            {
+              title: payload.title,
+              body: payload.body,
+              data: { url: '/' }
+            },
+            {
+              vapidPublicKey,
+              vapidPrivateKey,
+              vapidSubject
+            }
+          ).catch(() => null)
+        )
+      );
+    }
   }
 
   return json({ ok: true });

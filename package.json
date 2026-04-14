@@ -12,7 +12,8 @@
     "cf:d1:create": "npx wrangler d1 create transporter",
     "cf:d1:apply": "npx wrangler d1 migrations apply transporter --remote",
     "cf:dev": "npm run build && npx wrangler pages dev dist",
-    "cf:deploy": "npm run build && npx wrangler pages deploy dist --project-name transporter"
+    "cf:deploy": "npm run build && npx wrangler pages deploy dist --project-name transporter",
+    "generate:vapid": "node scripts/generate-vapid.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.97.0",
