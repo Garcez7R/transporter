@@ -330,7 +330,7 @@ export async function onRequestPost({ request, env }: { request: Request; env: E
         phone_visible,
         client_pin_status
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'em_atendimento', ?, ?, 1, 'first_access')
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'agendada', ?, ?, 1, 'first_access')
     `
   )
     .bind(
@@ -364,7 +364,7 @@ export async function onRequestPost({ request, env }: { request: Request; env: E
   await env.DB.prepare(
     'INSERT INTO status_history (trip_request_id, previous_status, next_status, changed_by_role, changed_by_name) VALUES (?, ?, ?, ?, ?)'
   )
-    .bind(requestId, null, 'em_atendimento', session?.role ?? 'operador', session?.name ?? 'Equipe Operação')
+    .bind(requestId, null, 'agendada', session?.role ?? 'operador', session?.name ?? 'Equipe Operação')
     .run();
 
   await logAudit(env, {
