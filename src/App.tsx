@@ -365,6 +365,18 @@ function App() {
     }
   }
 
+  function confirmResetClientPin() {
+    confirmationModal.showConfirmation('Deseja resetar o PIN do paciente para 0000?', () => {
+      handleResetClientPin();
+    });
+  }
+
+  function confirmResetUserPin(user: typeof users[number]) {
+    confirmationModal.showConfirmation(`Resetar o PIN do usuário ${user.name} para 0000?`, () => {
+      handleResetUserPin(user);
+    });
+  }
+
   async function handleInstallApp() {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
@@ -1830,7 +1842,7 @@ function App() {
             handleSaveTrip={handleSaveTrip}
             handleSendMessage={handleSendMessage}
             handleConfirmRead={handleConfirmRead}
-            handleResetClientPin={handleResetClientPin}
+            handleResetClientPin={confirmResetClientPin}
             statusLabels={statusLabels}
             formatTime={(value) => {
               const digits = value.replace(/\D/g, '').slice(0, 4);
@@ -1851,7 +1863,7 @@ function App() {
             userForm={userForm}
             setUserForm={setUserForm}
             handleCreateUser={handleCreateUser}
-            handleResetUserPin={handleResetUserPin}
+            handleResetUserPin={confirmResetUserPin}
             canViewUsers={canViewUsers}
             roleLabels={roleLabels}
           />
