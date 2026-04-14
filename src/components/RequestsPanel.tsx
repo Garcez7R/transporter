@@ -290,7 +290,8 @@ export function RequestsPanel({
                             type="button"
                             onClick={() => {
                               setActiveRequestId(request.id);
-                              setActiveNav('detalhes');
+                              setActiveNav('solicitacoes');
+                              setOperatorView('recentes');
                             }}
                           >
                             Editar
@@ -301,8 +302,6 @@ export function RequestsPanel({
                             onClick={() => {
                               if (helpers.confirmAction) {
                                 helpers.confirmAction('Deseja excluir esta solicitação?', () => handleDeleteRequest(request.id));
-                              } else if (window.confirm('Deseja excluir esta solicitação?')) {
-                                handleDeleteRequest(request.id);
                               }
                             }}
                           >

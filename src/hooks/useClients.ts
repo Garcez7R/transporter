@@ -156,9 +156,9 @@ export function useClients(session: SessionUser | null, showBanner: (type: Banne
 
     if (confirmAction) {
       confirmAction('Confirmar atualização do cadastro deste paciente?', performUpdate);
-    } else if (window.confirm('Confirmar atualização do cadastro deste paciente?')) {
-      await performUpdate();
+      return;
     }
+    showBanner('error', 'Confirmação indisponível. Atualização não executada.');
   }
 
   async function handleDeleteClient(id: number) {
@@ -181,9 +181,9 @@ export function useClients(session: SessionUser | null, showBanner: (type: Banne
 
     if (confirmAction) {
       confirmAction('Deseja excluir este paciente? Essa ação não poderá ser desfeita.', performDelete);
-    } else if (window.confirm('Deseja excluir este paciente? Essa ação não poderá ser desfeita.')) {
-      await performDelete();
+      return;
     }
+    showBanner('error', 'Confirmação indisponível. Exclusão não executada.');
   }
 
   function openClientModal(client: ClientRow) {

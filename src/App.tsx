@@ -1085,7 +1085,7 @@ function App() {
                           <div className="table-actions">
                             <button
                               className="cta ghost"
-                              onClick={() => { setActiveRequestId(request.id); setActiveNav('detalhes'); }}
+                              onClick={() => { setActiveRequestId(request.id); setActiveNav('solicitacoes'); setOperatorView('recentes'); }}
                               aria-label={`Editar solicitação ${request.protocol}`}
                             >
                               Editar
