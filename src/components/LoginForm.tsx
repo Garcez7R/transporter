@@ -75,14 +75,21 @@ export function LoginForm({
         <form className="login-form" onSubmit={handleLogin}>
           <label>
             <span>CPF</span>
-            <input value={loginDocument} onChange={(event) => setLoginDocument(event.target.value)} placeholder="Digite o CPF" />
+            <input
+              value={loginDocument}
+              onChange={(event) => setLoginDocument(event.target.value)}
+              onFocus={() => setLoginDocument('')}
+              inputMode="numeric"
+              autoComplete="off"
+              placeholder="000.000.000-00"
+            />
           </label>
           <label>
             <span>PIN</span>
             <input
               value={loginPin}
               onChange={(event) => setLoginPin(event.target.value)}
-              onFocus={(event) => event.currentTarget.select()}
+              onFocus={() => setLoginPin('')}
               type="password"
               inputMode="numeric"
               placeholder="****"
