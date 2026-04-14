@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { DragEvent, FormEvent } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { demoUsers, vehicleFleet } from './data';
-import { listClients } from './lib/api';
+import { listClients, subscribePush, dispatchNotification } from './lib/api';
 import { formatCep, formatDocument, normalizeCep, normalizeDocument } from './lib/persistence';
 import type { AccessRole, RequestStatus } from './types';
 import { useClients } from './hooks/useClients';
@@ -311,6 +311,47 @@ function App() {
       setRouteDate(date);
     }
   }, [session, routeDate]);
+
+  useEffect(() => {
+    if (!session?.token) return;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    const publicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
+    if (!publicKey) return;
+
+    const urlBase64ToUint8Array = (base64String: string) => {
+      const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+      const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+      const rawData = window.atob(base64);
+      const outputArray = new Uint8Array(rawData.length);
+      for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+      }
+      return outputArray;
+    };
+
+    const register = async () => {
+      const permission = await notifications.requestPermission();
+      if (!permission) return;
+      const registration = await navigator.serviceWorker.ready;
+      const existing = await registration.pushManager.getSubscription();
+      const subscription = existing ?? await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey)
+      });
+      const json = subscription.toJSON();
+      if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) return;
+      await subscribePush(
+        {
+          endpoint: json.endpoint,
+          keys: { p256dh: json.keys.p256dh, auth: json.keys.auth },
+          userAgent: navigator.userAgent
+        },
+        session.token
+      );
+    };
+
+    register().catch(() => undefined);
+  }, [session?.token]);
 
   useEffect(() => {
     if (!routeDriver || !routeVehicle || !routeDate) {
@@ -665,6 +706,16 @@ function App() {
       });
     }
     showBanner('success', 'Rota salva e sincronizada.');
+    if (session?.token) {
+      dispatchNotification(
+        {
+          title: 'Rota publicada',
+          body: `Rota de ${routeDriver} pronta para ${routeDate}.`,
+          targetRole: 'motorista'
+        },
+        session.token
+      ).catch(() => undefined);
+    }
   }
 
   function handleRouteClear() {

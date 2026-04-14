@@ -155,6 +155,8 @@ export function useNotifications() {
     notificationManager.showBrowserNotification(title, options);
   }, []);
 
+  const requestPermission = useCallback(() => notificationManager.requestPermission(), []);
+
   // Auto-notifications for request status changes
   const notifyRequestStatusChange = useCallback((request: TripRequest, oldStatus?: string) => {
     const statusMessages = {
@@ -211,6 +213,7 @@ export function useNotifications() {
     showWarning,
     showInfo,
     showBrowserNotification,
+    requestPermission,
     notifyRequestStatusChange,
     notifyNewRequest,
     notifyUrgentRequest

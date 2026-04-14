@@ -248,3 +248,36 @@ export async function deleteClient(id: number | string, token?: string) {
     token
   );
 }
+
+export async function subscribePush(payload: { endpoint: string; keys: { p256dh: string; auth: string }; userAgent?: string }, token?: string) {
+  return request<ApiResponse<Record<string, never>>>(
+    '/api/notifications/subscribe',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    },
+    token
+  );
+}
+
+export async function unsubscribePush(payload: { endpoint: string }, token?: string) {
+  return request<ApiResponse<Record<string, never>>>(
+    '/api/notifications/unsubscribe',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    },
+    token
+  );
+}
+
+export async function dispatchNotification(payload: { title: string; body: string; targetRole?: string; targetUserId?: number }, token?: string) {
+  return request<ApiResponse<Record<string, never>>>(
+    '/api/notifications/dispatch',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    },
+    token
+  );
+}
