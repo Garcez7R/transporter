@@ -365,15 +365,21 @@ function App() {
     }
   }
 
-  function confirmResetClientPin() {
-    confirmationModal.showConfirmation('Deseja resetar o PIN do paciente para 0000?', () => {
-      handleResetClientPin();
+  async function confirmResetClientPin() {
+    return new Promise<void>((resolve) => {
+      confirmationModal.showConfirmation('Deseja resetar o PIN do paciente para 0000?', async () => {
+        await handleResetClientPin();
+        resolve();
+      });
     });
   }
 
-  function confirmResetUserPin(user: typeof users[number]) {
-    confirmationModal.showConfirmation(`Resetar o PIN do usuário ${user.name} para 0000?`, () => {
-      handleResetUserPin(user);
+  async function confirmResetUserPin(user: typeof users[number]) {
+    return new Promise<void>((resolve) => {
+      confirmationModal.showConfirmation(`Resetar o PIN do usuário ${user.name} para 0000?`, async () => {
+        await handleResetUserPin(user);
+        resolve();
+      });
     });
   }
 
