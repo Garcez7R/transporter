@@ -286,19 +286,19 @@ export function useRequests(session: SessionUser | null, showBanner: (type: Bann
 
     try {
       if (!requestForm.street.trim() || !requestForm.number.trim() || !requestForm.neighborhood.trim() || !requestForm.city.trim()) {
-        showBanner('error', 'Informe rua, número, bairro e cidade do embarque.');
+        pushToast('error', 'Informe rua, número, bairro e cidade do embarque.');
         return;
       }
       if (normalizeCep(requestForm.cep).length < 8) {
-        showBanner('error', 'Informe o CEP do embarque.');
+        pushToast('error', 'Informe o CEP do embarque.');
         return;
       }
       if (!requestForm.destinationFacility.trim()) {
-        showBanner('error', 'Informe o hospital, clínica ou posto de destino.');
+        pushToast('error', 'Informe o hospital, clínica ou posto de destino.');
         return;
       }
       if (!requestDate || !requestTime || !consultDate || !consultTime) {
-        showBanner('error', 'Informe data e hora da viagem e da consulta.');
+        pushToast('error', 'Informe data e hora da viagem e da consulta.');
         return;
       }
 
@@ -334,7 +334,7 @@ export function useRequests(session: SessionUser | null, showBanner: (type: Bann
       await refreshRequests(session.token);
       if (createdId) setActiveRequestId(createdId);
     } catch (error) {
-      showBanner('error', error instanceof Error ? error.message : 'Não foi possível criar a solicitação.');
+      pushToast('error', error instanceof Error ? error.message : 'Não foi possível criar a solicitação.');
     }
   }
 
@@ -345,7 +345,7 @@ export function useRequests(session: SessionUser | null, showBanner: (type: Bann
       await updateRequest(id, patch, session.token);
       await refreshRequests(session.token);
     } catch (error) {
-      showBanner('error', error instanceof Error ? error.message : 'Não foi possível atualizar a solicitação.');
+      pushToast('error', error instanceof Error ? error.message : 'Não foi possível atualizar a solicitação.');
     }
   }
 
@@ -356,7 +356,7 @@ export function useRequests(session: SessionUser | null, showBanner: (type: Bann
       pushToast('success', 'Solicitação excluída.');
       await refreshRequests(session.token);
     } catch (error) {
-      showBanner('error', error instanceof Error ? error.message : 'Não foi possível excluir a solicitação.');
+      pushToast('error', error instanceof Error ? error.message : 'Não foi possível excluir a solicitação.');
     }
   }
 
@@ -411,7 +411,7 @@ export function useRequests(session: SessionUser | null, showBanner: (type: Bann
   async function applyManagerAddress() {
     if (!activeRequest) return;
     if (!managerStreet.trim() || !managerNumber.trim() || !managerNeighborhood.trim() || !managerCity.trim()) {
-      showBanner('error', 'Informe rua, número, bairro e cidade do embarque.');
+      pushToast('error', 'Informe rua, número, bairro e cidade do embarque.');
       return;
     }
     await patchRequest(activeRequest.id, {

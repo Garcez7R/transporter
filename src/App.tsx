@@ -385,7 +385,7 @@ function App() {
       setDeferredPrompt(null);
       showBanner('success', 'Transporter está pronto para instalação.');
     } else {
-      showBanner('error', 'Instalação cancelada. Você pode instalar mais tarde.');
+      pushToast('error', 'Instalação cancelada. Você pode instalar mais tarde.');
     }
   }
 
@@ -494,10 +494,10 @@ function App() {
           ...current,
           document: formatDocument(document)
         }));
-        showBanner('error', 'Paciente não encontrado. Complete o cadastro para continuar.');
+        pushToast('error', 'Paciente não encontrado. Complete o cadastro para continuar.');
       }
     } catch (error) {
-      showBanner('error', error instanceof Error ? error.message : 'Não foi possível buscar o CPF.');
+      pushToast('error', error instanceof Error ? error.message : 'Não foi possível buscar o CPF.');
     }
   }
 
@@ -507,7 +507,7 @@ function App() {
 
     try {
       if (!clientForm.cep.trim() || !clientForm.street.trim() || !clientForm.number.trim() || !clientForm.neighborhood.trim() || !clientForm.city.trim()) {
-        showBanner('error', 'CEP, rua, número, bairro e cidade são obrigatórios.');
+        pushToast('error', 'CEP, rua, número, bairro e cidade são obrigatórios.');
         return;
       }
       await clientsHook.handleCreateClient(event);
@@ -526,7 +526,7 @@ function App() {
       setCpfLookupStatus('found');
       pushToast('success', 'Paciente cadastrado e preenchido na solicitação.');
     } catch (error) {
-      showBanner('error', error instanceof Error ? error.message : 'Não foi possível cadastrar o paciente.');
+      pushToast('error', error instanceof Error ? error.message : 'Não foi possível cadastrar o paciente.');
     }
   }
 
@@ -575,11 +575,11 @@ function App() {
     const request = visibleRequests.find((item) => item.id === requestId);
     if (!request) return;
     if (!routeDriver || !routeVehicle) {
-      showBanner('error', 'Selecione motorista e veículo antes de montar a rota.');
+      pushToast('error', 'Selecione motorista e veículo antes de montar a rota.');
       return;
     }
     if (!['aguardando_distribuicao', 'agendada', 'em_atendimento'].includes(request.status)) {
-      showBanner('error', 'Apenas solicitações pendentes podem ser adicionadas à rota.');
+      pushToast('error', 'Apenas solicitações pendentes podem ser adicionadas à rota.');
       return;
     }
     if (routeRequests.includes(requestId)) return;
@@ -638,11 +638,11 @@ function App() {
 
   async function handleRouteSave() {
     if (!routeDriver || !routeVehicle) {
-      showBanner('error', 'Selecione motorista e veículo para salvar a rota.');
+      pushToast('error', 'Selecione motorista e veículo para salvar a rota.');
       return;
     }
     if (!routeDate) {
-      showBanner('error', 'Informe a data da rota para salvar.');
+      pushToast('error', 'Informe a data da rota para salvar.');
       return;
     }
     for (let index = 0; index < routeItems.length; index += 1) {
@@ -694,7 +694,7 @@ function App() {
   function handleDriverFuelSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!fuelForm.odometer.trim() || !fuelForm.liters.trim()) {
-      showBanner('error', 'Informe km atual e litros abastecidos.');
+      pushToast('error', 'Informe km atual e litros abastecidos.');
       return;
     }
     showBanner('success', 'Abastecimento registrado para a viagem.');
