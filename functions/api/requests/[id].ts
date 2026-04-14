@@ -18,6 +18,8 @@ type UpdateBody = {
   phoneVisible?: boolean;
   clientConfirmedAt?: string;
   pinStatus?: string;
+  routeDate?: string;
+  routeOrder?: number | null;
   message?: string;
 };
 
@@ -40,6 +42,8 @@ type RequestDetail = {
   notes: string;
   companions: string;
   phoneVisible: boolean;
+  routeDate?: string;
+  routeOrder?: number | null;
   pinStatus: string;
   clientConfirmedAt: string | null;
   messages: Array<{
@@ -78,6 +82,8 @@ async function fetchDetail(env: Env, requestId: number) {
         trip_requests.destination,
         trip_requests.boarding_point AS boardingPoint,
         trip_requests.boarding_cep AS boardingCep,
+        trip_requests.route_date AS routeDate,
+        trip_requests.route_order AS routeOrder,
         trip_requests.departure_at AS departureAt,
         trip_requests.arrival_eta AS arrivalEta,
         trip_requests.status,
@@ -152,6 +158,8 @@ async function fetchDetail(env: Env, requestId: number) {
     notes: String(row.notes ?? ''),
     companions: String(row.companions ?? ''),
     phoneVisible: Boolean(row.phoneVisible),
+    routeDate: row.routeDate ? String(row.routeDate) : '',
+    routeOrder: row.routeOrder !== null && row.routeOrder !== undefined ? Number(row.routeOrder) : undefined,
     pinStatus: String(row.pinStatus ?? 'first_access'),
     clientConfirmedAt: (row.clientConfirmedAt as string | null) ?? null,
     messages: (messagesResult.results ?? []).map((item) => ({
@@ -261,6 +269,8 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
     phoneVisible: hasField(body.phoneVisible),
     clientConfirmedAt: hasField(body.clientConfirmedAt),
     pinStatus: hasField(body.pinStatus),
+    routeDate: hasField(body.routeDate),
+    routeOrder: hasField(body.routeOrder),
     message: hasField(body.message)
   };
 
@@ -318,6 +328,8 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
       'departureAt',
       'arrivalEta',
       'phoneVisible',
+      'routeDate',
+      'routeOrder',
       'message'
     ];
     if (hasDisallowed(allowed)) {
@@ -349,6 +361,8 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
   if (body.phoneVisible !== undefined) setField('phone_visible', body.phoneVisible ? 1 : 0);
   if (body.clientConfirmedAt !== undefined) setField('client_confirmed_at', body.clientConfirmedAt);
   if (body.pinStatus !== undefined) setField('client_pin_status', body.pinStatus);
+  if (body.routeDate !== undefined) setField('route_date', body.routeDate);
+  if (body.routeOrder !== undefined) setField('route_order', body.routeOrder);
 
   if (updates.length) {
     setField('updated_at', new Date().toISOString());
@@ -434,7 +448,7 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
     });
   }
 
-  if (body.driver !== undefined || body.vehicle !== undefined || body.departureAt !== undefined || body.arrivalEta !== undefined) {
+  if (body.driver !== undefined || body.vehicle !== undefined || body.departureAt !== undefined || body.arrivalEta !== undefined || body.routeDate !== undefined || body.routeOrder !== undefined) {
     await logAudit(env, {
       tripRequestId: requestId,
       entityType: 'trip_request',

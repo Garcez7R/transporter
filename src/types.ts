@@ -74,6 +74,8 @@ export interface TripRequest {
   notes: string;
   companions: string;
   phoneVisible: boolean;
+  routeDate?: string;
+  routeOrder?: number | null;
   pinStatus: 'active' | 'reset' | 'first_access';
   clientConfirmedAt?: string;
   messages: MessageItem[];
@@ -161,6 +163,8 @@ export type RequestPatch = Partial<
     | 'phoneVisible'
     | 'clientConfirmedAt'
     | 'pinStatus'
+    | 'routeDate'
+    | 'routeOrder'
   >
 > & {
   message?: string;

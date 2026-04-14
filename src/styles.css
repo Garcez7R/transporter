@@ -2146,6 +2146,10 @@ select:focus {
     position: relative;
     top: 0;
   }
+
+  .manager-request-list {
+    max-height: none;
+  }
 }
 
 @media (max-width: 720px) {
@@ -2481,6 +2485,13 @@ select:focus {
   margin-top: 16px;
   padding-top: 12px;
   border-top: 1px solid var(--line);
+}
+
+.driver-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+  flex-wrap: wrap;
 }
 
 .compact-form input {

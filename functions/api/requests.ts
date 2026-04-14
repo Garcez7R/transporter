@@ -25,6 +25,8 @@ type RequestRow = {
   clientCep?: string;
   clientAddress?: string;
   boardingCep?: string;
+  routeDate?: string;
+  routeOrder?: number;
   destination: string;
   boardingPoint: string;
   departureAt: string;
@@ -147,6 +149,8 @@ async function mapRequestRows(env: Env, rows: Array<Record<string, unknown>>) {
       clientCep: row.clientCep ? String(row.clientCep) : '',
       clientAddress: row.clientAddress ? String(row.clientAddress) : '',
       boardingCep: row.boardingCep ? String(row.boardingCep) : '',
+      routeDate: row.routeDate ? String(row.routeDate) : '',
+      routeOrder: row.routeOrder !== null && row.routeOrder !== undefined ? Number(row.routeOrder) : undefined,
       destination: String(row.destination),
       boardingPoint: String(row.boardingPoint),
       departureAt: String(row.departureAt),
@@ -192,6 +196,8 @@ export async function onRequestGet({ request, env }: { request: Request; env: En
       trip_requests.destination,
       trip_requests.boarding_point AS boardingPoint,
       trip_requests.boarding_cep AS boardingCep,
+      trip_requests.route_date AS routeDate,
+      trip_requests.route_order AS routeOrder,
       trip_requests.departure_at AS departureAt,
       trip_requests.arrival_eta AS arrivalEta,
       trip_requests.status,

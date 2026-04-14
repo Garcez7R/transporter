@@ -304,6 +304,36 @@ function App() {
   }, [activeNav, internalNavItems, session]);
 
   useEffect(() => {
+    if (!session || (session.role !== 'gerente' && session.role !== 'administrador')) return;
+    if (!routeDate) {
+      const today = new Date();
+      const date = today.toISOString().slice(0, 10);
+      setRouteDate(date);
+    }
+  }, [session, routeDate]);
+
+  useEffect(() => {
+    if (!routeDriver || !routeVehicle || !routeDate) {
+      setRouteRequests([]);
+      return;
+    }
+    const normalizedDriver = routeDriver.toLowerCase();
+    const normalizedVehicle = routeVehicle.toLowerCase();
+    const matches = visibleRequests.filter((request) =>
+      request.driver.toLowerCase() === normalizedDriver &&
+      request.vehicle.toLowerCase() === normalizedVehicle &&
+      request.routeDate === routeDate
+    );
+    const sorted = [...matches].sort((a, b) => {
+      const orderA = a.routeOrder ?? 9999;
+      const orderB = b.routeOrder ?? 9999;
+      if (orderA !== orderB) return orderA - orderB;
+      return new Date(a.departureAt).getTime() - new Date(b.departureAt).getTime();
+    });
+    setRouteRequests(sorted.map((request) => request.id));
+  }, [routeDriver, routeVehicle, routeDate, visibleRequests]);
+
+  useEffect(() => {
     const handleBeforeInstallPrompt = (event: BeforeInstallPromptEvent) => {
       event.preventDefault();
       setDeferredPrompt(event);
@@ -541,15 +571,30 @@ function App() {
       return;
     }
     if (routeRequests.includes(requestId)) return;
+    const fallbackDate = splitDateTime(request.departureAt).date;
+    const routeDateValue = routeDate || fallbackDate;
+    const nextOrder = routeRequests.length + 1;
     setRouteRequests((current) => [...current, requestId]);
     setRouteActiveId(requestId);
-    await patchRequest(requestId, { driver: routeDriver, vehicle: routeVehicle, status: 'agendada' });
+    await patchRequest(requestId, {
+      driver: routeDriver,
+      vehicle: routeVehicle,
+      status: 'agendada',
+      routeDate: routeDateValue || undefined,
+      routeOrder: nextOrder
+    });
   }
 
   async function handleRouteRemove(requestId: string) {
     setRouteRequests((current) => current.filter((id) => id !== requestId));
     if (routeActiveId === requestId) setRouteActiveId(null);
-    await patchRequest(requestId, { driver: '', vehicle: '', status: 'aguardando_distribuicao' });
+    await patchRequest(requestId, {
+      driver: '',
+      vehicle: '',
+      status: 'aguardando_distribuicao',
+      routeDate: '',
+      routeOrder: null
+    });
   }
 
   function reorderRoute(requestId: string, targetId: string) {
@@ -584,6 +629,10 @@ function App() {
       showBanner('error', 'Selecione motorista e veículo para salvar a rota.');
       return;
     }
+    if (!routeDate) {
+      showBanner('error', 'Informe a data da rota para salvar.');
+      return;
+    }
     for (let index = 0; index < routeItems.length; index += 1) {
       const request = routeItems[index];
       if (!request) continue;
@@ -592,7 +641,9 @@ function App() {
         driver: routeDriver,
         vehicle: routeVehicle,
         status: 'agendada',
-        departureAt: departureAt || request.departureAt
+        departureAt: departureAt || request.departureAt,
+        routeDate,
+        routeOrder: index + 1
       });
     }
     showBanner('success', 'Rota salva e sincronizada.');
@@ -1665,6 +1716,24 @@ function App() {
                   <a className="cta" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(buildMapQuery(activeRequest) || activeRequest.boardingPoint)}`} target="_blank" rel="noreferrer">
                     Abrir mapa
                   </a>
+                  <div className="driver-actions">
+                    {activeRequest.status === 'agendada' && (
+                      <button className="cta warning" type="button" onClick={async () => {
+                        await patchRequest(activeRequest.id, { status: 'em_rota' });
+                        showBanner('success', 'Rota iniciada.');
+                      }}>
+                        Iniciar rota
+                      </button>
+                    )}
+                    {activeRequest.status === 'em_rota' && (
+                      <button className="cta success" type="button" onClick={async () => {
+                        await patchRequest(activeRequest.id, { status: 'concluida' });
+                        showBanner('success', 'Viagem concluída.');
+                      }}>
+                        Concluir viagem
+                      </button>
+                    )}
+                  </div>
                   <div className="driver-fuel">
                     <div className="section-head compact">
                       <p className="eyebrow">Abastecimento</p>

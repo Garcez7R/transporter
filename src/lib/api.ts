@@ -110,6 +110,8 @@ export async function updateRequest(
     phoneVisible?: boolean;
     clientConfirmedAt?: string;
     pinStatus?: TripRequest['pinStatus'];
+    routeDate?: string;
+    routeOrder?: number | null;
     message?: string;
   },
   token?: string
