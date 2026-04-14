@@ -6,3 +6,6 @@ pages_build_output_dir = "dist"
 binding = "DB"
 database_name = "transporter"
 database_id = "e52175f9-989a-4a3b-a28d-f959c9b25d01"
+
+[vars]
+VITE_VAPID_PUBLIC_KEY = "BEjxq-honhlq70mYcXcmUFLRxu3ulYmOtozdTHoPVhGDTGIReT83XUm_q1R9f6rVmWPfxF0kS41aLyIZzyxJpe0"
