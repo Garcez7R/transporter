@@ -6,8 +6,7 @@ type BulkOperationsProps = {
   requests: TripRequest[];
   onBulkUpdate: (ids: string[], status: string) => void;
   onBulkDelete: (ids: string[]) => void;
-  onExport: (format: 'csv' | 'json' | 'pdf') => void;
-  onImport: (file: File) => void;
+  onExport: (format: 'csv' | 'json') => void;
 };
 
 export function BulkOperations({
@@ -15,8 +14,7 @@ export function BulkOperations({
   requests,
   onBulkUpdate,
   onBulkDelete,
-  onExport,
-  onImport
+  onExport
 }: BulkOperationsProps) {
   const [showBulkMenu, setShowBulkMenu] = useState(false);
 
@@ -87,36 +85,15 @@ export function BulkOperations({
               >
                 🗑️ Excluir
               </button>
-              <button
-                className="cta ghost"
-                onClick={() => onExport('pdf')}
-              >
-                📄 Relatório PDF
-              </button>
             </div>
           </div>
 
           <div className="bulk-section">
-            <h4>Importar/Exportar</h4>
+            <h4>Exportação</h4>
             <div className="bulk-buttons">
-              <button
-                className="cta ghost"
-                onClick={() => onExport('json')}
-              >
+              <button className="cta ghost" onClick={() => onExport('json')}>
                 💾 Exportar JSON
               </button>
-              <label className="cta ghost file-input">
-                📁 Importar
-                <input
-                  type="file"
-                  accept=".json,.csv"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) onImport(file);
-                  }}
-                  style={{ display: 'none' }}
-                />
-              </label>
             </div>
           </div>
         </div>

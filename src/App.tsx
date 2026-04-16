@@ -68,6 +68,24 @@ function buildDayBounds(isoDate: string) {
   return { start, end };
 }
 
+function downloadFile(filename: string, content: string, type: string) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function escapeCsv(value: string | number | boolean | null | undefined) {
+  const text = String(value ?? '');
+  if (text.includes(',') || text.includes('"') || text.includes('\n')) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
 type OperationalConflict = {
   id: string;
   category: 'driver_overlap' | 'vehicle_maintenance' | 'daily_overload' | 'vehicle_overlap';
@@ -287,6 +305,10 @@ function App() {
   const [activeVehicleId, setActiveVehicleId] = useState(vehicleFleet[0]?.id ?? null);
   const [showFuelForm, setShowFuelForm] = useState(false);
   const [fuelForm, setFuelForm] = useState({ odometer: '', liters: '' });
+  const [pushStatus, setPushStatus] = useState<'supported' | 'unsupported' | 'granted' | 'denied' | 'default'>(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported';
+    return Notification.permission;
+  });
 
   const sortedRequests = useMemo(() => {
     const sorted = [...visibleRequests];
@@ -515,11 +537,11 @@ function App() {
     }
   }, [session, routeDate]);
 
-  useEffect(() => {
-    if (!session?.token) return;
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  const registerPushSubscription = async () => {
+    if (!session?.token) return false;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return false;
     const publicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
-    if (!publicKey) return;
+    if (!publicKey) return false;
 
     const urlBase64ToUint8Array = (base64String: string) => {
       const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -532,28 +554,34 @@ function App() {
       return outputArray;
     };
 
-    const register = async () => {
-      const permission = await notifications.requestPermission();
-      if (!permission) return;
-      const registration = await navigator.serviceWorker.ready;
-      const existing = await registration.pushManager.getSubscription();
-      const subscription = existing ?? await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(publicKey)
-      });
-      const json = subscription.toJSON();
-      if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) return;
-      await subscribePush(
-        {
-          endpoint: json.endpoint,
-          keys: { p256dh: json.keys.p256dh, auth: json.keys.auth },
-          userAgent: navigator.userAgent
-        },
-        session.token
-      );
-    };
+    const permission = await notifications.requestPermission();
+    setPushStatus(permission ? 'granted' : Notification.permission);
+    if (!permission) return false;
 
-    register().catch(() => undefined);
+    const registration = await navigator.serviceWorker.ready;
+    const existing = await registration.pushManager.getSubscription();
+    const subscription = existing ?? await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey)
+    });
+    const json = subscription.toJSON();
+    if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) return false;
+    await subscribePush(
+      {
+        endpoint: json.endpoint,
+        keys: { p256dh: json.keys.p256dh, auth: json.keys.auth },
+        userAgent: navigator.userAgent
+      },
+      session.token
+    );
+    return true;
+  };
+
+  useEffect(() => {
+    if (!session?.token) return;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    setPushStatus(Notification.permission);
+    registerPushSubscription().catch(() => undefined);
   }, [session?.token]);
 
   useEffect(() => {
@@ -607,6 +635,33 @@ function App() {
         setOperatorView('novo');
       }
     }
+  }
+
+  function resetTripForm() {
+    if (!activeRequest) return;
+    setTripForm({
+      destination: activeRequest.destination,
+      destinationFacility: activeRequest.destinationFacility,
+      boardingPoint: activeRequest.boardingPoint,
+      departureAt: activeRequest.departureAt,
+      arrivalEta: activeRequest.arrivalEta,
+      notes: activeRequest.notes,
+      companions: activeRequest.companions,
+      status: activeRequest.status,
+      driver: activeRequest.driver,
+      vehicle: activeRequest.vehicle,
+      phoneVisible: Boolean(activeRequest.phoneVisible)
+    });
+    const parsed = activeRequest.companions ? activeRequest.companions.match(/sim:\s*(.+)\s+\((.+)\)/i) : null;
+    setTripCompanion(parsed ? 'sim' : 'nao');
+    setTripCompanionName(parsed?.[1]?.trim() ?? '');
+    setTripCompanionCpf(parsed?.[2]?.trim() ?? '');
+    const departure = splitDateTime(activeRequest.departureAt);
+    const consult = splitDateTime(activeRequest.arrivalEta);
+    setTripDate(departure.date);
+    setTripTime(departure.time);
+    setTripConsultDate(consult.date);
+    setTripConsultTime(consult.time);
   }
 
   function applySidebarDate(isoDate: string) {
@@ -840,6 +895,84 @@ function App() {
         }
       }
     );
+  }
+
+  function exportRequests(format: 'csv' | 'json', selectedIds: string[]) {
+    const rows = sortedRequests.filter((request) => selectedIds.includes(request.id));
+    if (!rows.length) {
+      pushToast('error', 'Selecione ao menos uma solicitação para exportar.');
+      return;
+    }
+
+    if (format === 'json') {
+      downloadFile(
+        `transporter-solicitacoes-${new Date().toISOString().slice(0, 10)}.json`,
+        JSON.stringify(rows, null, 2),
+        'application/json'
+      );
+      pushToast('success', 'Solicitações exportadas em JSON.');
+      return;
+    }
+
+    const header = ['protocolo', 'paciente', 'cpf', 'destino', 'unidade', 'saida', 'status', 'motorista', 'veiculo'];
+    const lines = rows.map((request) => [
+      request.protocol,
+      request.clientName,
+      request.document,
+      request.destination,
+      request.destinationFacility,
+      request.departureAt,
+      request.status,
+      request.driver,
+      request.vehicle
+    ].map(escapeCsv).join(','));
+
+    downloadFile(
+      `transporter-solicitacoes-${new Date().toISOString().slice(0, 10)}.csv`,
+      [header.join(','), ...lines].join('\n'),
+      'text/csv;charset=utf-8'
+    );
+    pushToast('success', 'Solicitações exportadas em CSV.');
+  }
+
+  function exportAppSnapshot(format: 'json' | 'csv') {
+    if (format === 'json') {
+      const snapshot = {
+        generatedAt: new Date().toISOString(),
+        requests,
+        clients,
+        users,
+        preferences: {
+          themeMode,
+          patientFontLarge
+        }
+      };
+      downloadFile(
+        `transporter-snapshot-${new Date().toISOString().slice(0, 10)}.json`,
+        JSON.stringify(snapshot, null, 2),
+        'application/json'
+      );
+      pushToast('success', 'Snapshot operacional exportado em JSON.');
+      return;
+    }
+
+    const lines = requests.map((request) => [
+      request.protocol,
+      request.clientName,
+      request.destination,
+      request.destinationFacility,
+      request.departureAt,
+      request.status,
+      request.driver,
+      request.vehicle
+    ].map(escapeCsv).join(','));
+
+    downloadFile(
+      `transporter-snapshot-${new Date().toISOString().slice(0, 10)}.csv`,
+      [['protocolo', 'paciente', 'destino', 'unidade', 'saida', 'status', 'motorista', 'veiculo'].join(','), ...lines].join('\n'),
+      'text/csv;charset=utf-8'
+    );
+    pushToast('success', 'Snapshot operacional exportado em CSV.');
   }
 
   async function handleBatchStatusUpdate(status: RequestStatus) {
@@ -1242,9 +1375,20 @@ function App() {
     }
   }
 
-  function handleRouteClear() {
+  async function handleRouteClear() {
+    for (const request of routeItems) {
+      if (!request) continue;
+      await patchRequest(request.id, {
+        driver: '',
+        vehicle: '',
+        status: 'aguardando_distribuicao',
+        routeDate: '',
+        routeOrder: null
+      });
+    }
     setRouteRequests([]);
     setRouteActiveId(null);
+    pushToast('success', 'Rota limpa e atribuições removidas.');
   }
 
   function handleRouteDragStart(event: DragEvent<HTMLElement>, requestId: string, origin: 'backlog' | 'route') {
@@ -1636,16 +1780,7 @@ function App() {
                         handleBatchStatusUpdate(status as RequestStatus);
                       }}
                       onBulkDelete={handleBatchDelete}
-                      onExport={(format) => {
-                        // Implement export functionality
-                        console.log('Exporting in format:', format);
-                        showBanner('success', `Exportando em formato ${format.toUpperCase()}...`);
-                      }}
-                      onImport={(file) => {
-                        // Implement import functionality
-                        console.log('Importing file:', file);
-                        showBanner('success', `Importando arquivo ${file.name}...`);
-                      }}
+                      onExport={(format) => exportRequests(format, selectedRequestIds)}
                     />
                   )}
                 </div>
@@ -1724,21 +1859,30 @@ function App() {
             ) : operatorView === 'configuracoes' ? (
               <Settings
                 userRole={session.role}
-                onExportData={(format) => {
-                  console.log('Exporting data in format:', format);
-                  showBanner('success', `Exportando dados em ${format.toUpperCase()}...`);
+                themeMode={themeMode}
+                patientFontLarge={patientFontLarge}
+                pushStatus={pushStatus}
+                onToggleTheme={() => setThemeMode((current) => (current === 'dark' ? 'light' : 'dark'))}
+                onTogglePatientFont={() => setPatientFontLarge((current) => !current)}
+                onRequestPushPermission={async () => {
+                  const granted = await registerPushSubscription().catch(() => false);
+                  setPushStatus(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported');
+                  if (granted) {
+                    pushToast('success', 'Notificações habilitadas para este navegador.');
+                  } else {
+                    pushToast('error', 'Não foi possível habilitar notificações agora.');
+                  }
                 }}
-                onImportData={(file) => {
-                  console.log('Importing data from file:', file);
-                  showBanner('success', `Importando dados de ${file.name}...`);
-                }}
+                onExportData={exportAppSnapshot}
                 onClearCache={() => {
                   localStorage.clear();
-                  showBanner('success', 'Cache limpo com sucesso!');
+                  pushToast('success', 'Cache local limpo com sucesso.');
                 }}
                 onResetSettings={() => {
-                  confirmationModal.showConfirmation('Deseja realmente resetar todas as configurações?', () => {
-                    showBanner('success', 'Configurações resetadas!');
+                  confirmationModal.showConfirmation('Deseja resetar tema, fonte ampliada e preferências locais?', () => {
+                    setThemeMode('dark');
+                    setPatientFontLarge(false);
+                    pushToast('success', 'Preferências locais resetadas.');
                   });
                 }}
               />
@@ -2495,6 +2639,7 @@ function App() {
             messageDraft={messageDraft}
             setMessageDraft={setMessageDraft}
             handleSaveTrip={handleSaveTrip}
+            handleResetTripForm={resetTripForm}
             handleSendMessage={handleSendMessage}
             handleConfirmRead={handleConfirmRead}
             handleResetClientPin={confirmResetClientPin}

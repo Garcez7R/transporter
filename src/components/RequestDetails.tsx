@@ -36,6 +36,7 @@ type RequestDetailsProps = {
   messageDraft: string;
   setMessageDraft: (value: string) => void;
   handleSaveTrip: (event: FormEvent<HTMLFormElement>) => Promise<void>;
+  handleResetTripForm: () => void;
   handleSendMessage: () => Promise<void>;
   handleConfirmRead: () => Promise<void>;
   handleResetClientPin: () => Promise<void>;
@@ -68,6 +69,7 @@ export function RequestDetails({
   messageDraft,
   setMessageDraft,
   handleSaveTrip,
+  handleResetTripForm,
   handleSendMessage,
   handleConfirmRead,
   handleResetClientPin,
@@ -214,31 +216,7 @@ export function RequestDetails({
               <button
                 className="cta ghost"
                 type="button"
-                onClick={() => {
-                  setTripForm({
-                    destination: activeRequest.destination,
-                    destinationFacility: activeRequest.destinationFacility,
-                    boardingPoint: activeRequest.boardingPoint,
-                    departureAt: activeRequest.departureAt,
-                    arrivalEta: activeRequest.arrivalEta,
-                    notes: activeRequest.notes,
-                    companions: activeRequest.companions,
-                    status: activeRequest.status,
-                    driver: activeRequest.driver,
-                    vehicle: activeRequest.vehicle,
-                    phoneVisible: Boolean(activeRequest.phoneVisible)
-                  });
-                  const parsed = activeRequest.companions ? activeRequest.companions.match(/sim:\s*(.+)\s+\((.+)\)/i) : null;
-                  setTripCompanion(parsed ? 'sim' : 'nao');
-                  setTripCompanionName(parsed?.[1]?.trim() ?? '');
-                  setTripCompanionCpf(parsed?.[2]?.trim() ?? '');
-                  const departure = { date: '', time: '' };
-                  const consult = { date: '', time: '' };
-                  setTripDate(departure.date);
-                  setTripTime(departure.time);
-                  setTripConsultDate(consult.date);
-                  setTripConsultTime(consult.time);
-                }}
+                onClick={handleResetTripForm}
               >
                 Cancelar
               </button>
