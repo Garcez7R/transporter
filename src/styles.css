@@ -1144,6 +1144,255 @@ h1 {
   font-size: 1rem;
 }
 
+.saas-ops-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.saas-ops-card,
+.saas-quick-card,
+.saas-hotspot {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%);
+  box-shadow: var(--shadow-float);
+}
+
+.saas-ops-card {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 16px;
+}
+
+.saas-ops-card strong {
+  font-size: 1.1rem;
+}
+
+.saas-ops-card span {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.saas-calendar-head {
+  display: grid;
+  gap: 10px;
+}
+
+.saas-calendar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.saas-calendar-nav strong {
+  font-size: 0.84rem;
+  text-transform: capitalize;
+}
+
+.saas-calendar-arrow,
+.saas-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--control-surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.18s ease, transform 0.18s ease, background 0.18s ease;
+}
+
+.saas-calendar-arrow {
+  width: 34px;
+}
+
+.saas-filter-chip {
+  padding: 0.45rem 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.saas-calendar-arrow:hover,
+.saas-filter-chip:hover,
+.saas-quick-card:hover,
+.saas-hotspot:hover {
+  transform: translateY(-1px);
+  border-color: rgba(63, 185, 80, 0.35);
+}
+
+.saas-calendar-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.saas-calendar {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015)),
+    rgba(8, 10, 14, 0.58);
+}
+
+.saas-calendar-weekdays,
+.saas-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.saas-calendar-weekdays span {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.saas-calendar-day {
+  min-height: 46px;
+  padding: 8px 4px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text);
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 2px;
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+.saas-calendar-day span {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.saas-calendar-day small {
+  color: var(--muted);
+  font-size: 0.62rem;
+}
+
+.saas-calendar-day.outside {
+  opacity: 0.42;
+}
+
+.saas-calendar-day.today {
+  border-color: rgba(79, 215, 255, 0.36);
+}
+
+.saas-calendar-day.selected {
+  background:
+    linear-gradient(135deg, rgba(63, 185, 80, 0.18), rgba(212, 175, 55, 0.14)),
+    rgba(255, 255, 255, 0.04);
+  border-color: rgba(63, 185, 80, 0.58);
+}
+
+.saas-calendar-day.critical {
+  box-shadow: inset 0 -2px 0 rgba(255, 90, 95, 0.7);
+}
+
+.saas-calendar-day.in-route {
+  box-shadow: inset 0 2px 0 rgba(255, 180, 84, 0.7);
+}
+
+.saas-calendar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.saas-calendar-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.saas-calendar-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.tone-neutral {
+  background: rgba(197, 206, 216, 0.75);
+}
+
+.tone-accent {
+  background: rgba(63, 185, 80, 0.9);
+}
+
+.tone-warning {
+  background: rgba(255, 180, 84, 0.92);
+}
+
+.tone-danger {
+  background: rgba(255, 90, 95, 0.92);
+}
+
+.saas-quick-list,
+.saas-hotspots {
+  display: grid;
+  gap: 10px;
+}
+
+.saas-quick-card,
+.saas-hotspot {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 16px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.saas-quick-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+}
+
+.saas-quick-card strong,
+.saas-hotspot span {
+  display: block;
+  font-size: 0.8rem;
+}
+
+.saas-quick-card span {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.saas-quick-card b,
+.saas-hotspot strong {
+  font-size: 1rem;
+}
+
+.saas-hotspot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.saas-hotspot.active {
+  border-color: rgba(63, 185, 80, 0.48);
+  background:
+    linear-gradient(135deg, rgba(63, 185, 80, 0.16), rgba(212, 175, 55, 0.1)),
+    rgba(255, 255, 255, 0.05);
+}
+
 .topbar {
   display: flex;
   align-items: center;
@@ -2185,6 +2434,21 @@ select:focus {
   .hero-panel,
   .content-panel {
     padding: 20px;
+  }
+
+  .saas-ops-grid,
+  .saas-calendar-weekdays,
+  .saas-calendar-grid {
+    gap: 6px;
+  }
+
+  .saas-quick-card,
+  .saas-hotspot {
+    padding: 11px 12px;
+  }
+
+  .saas-calendar-day {
+    min-height: 42px;
   }
 
   .topbar,

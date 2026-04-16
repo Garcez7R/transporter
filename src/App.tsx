@@ -26,7 +26,7 @@ import { BulkOperations } from './components/BulkOperations';
 import { ConfirmationModal } from './components/ConfirmationModal';
 import { ErrorBoundary, LoadingOverlay } from './components/ErrorBoundary';
 import { useOffline } from './hooks/useOffline';
-import { parseAddress } from './lib/utils';
+import { filteredRequests, parseAddress } from './lib/utils';
 
 const roleLabels: Record<AccessRole, string> = {
   cliente: 'Paciente',
@@ -53,6 +53,20 @@ const statusLabels: Record<RequestStatus, string> = {
   concluida: 'Concluída',
   cancelada: 'Cancelada'
 };
+
+function toLocalIsoDate(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function buildDayBounds(isoDate: string) {
+  const [year = 1970, month = 1, day = 1] = isoDate.split('-').map(Number);
+  const start = new Date(year, month - 1, day, 0, 0, 0, 0);
+  const end = new Date(year, month - 1, day, 23, 59, 59, 999);
+  return { start, end };
+}
 
 function App() {
   const sessionHook = useSession();
@@ -242,6 +256,144 @@ function App() {
     confirmados: sortedRequests.filter((request) => ['agendada', 'concluida'].includes(request.status)).length
   }), [pendingToday, inRoute, pendingDispatch, pendingPinChange, sortedRequests]);
 
+  const sidebarRequests = useMemo(
+    () => filteredRequests(requests, session, ''),
+    [requests, session]
+  );
+
+  const selectedSidebarDate = useMemo(() => {
+    const { start, end } = advancedFilters.dateRange;
+    if (!start || !end) return '';
+    if (
+      start.getFullYear() !== end.getFullYear() ||
+      start.getMonth() !== end.getMonth() ||
+      start.getDate() !== end.getDate()
+    ) {
+      return '';
+    }
+    return toLocalIsoDate(start);
+  }, [advancedFilters.dateRange]);
+
+  const sidebarLocations = useMemo(() => {
+    const counts = new Map<string, number>();
+    sidebarRequests.forEach((request) => {
+      const location = (request.destination || parseAddress(request.boardingPoint ?? '').city || '').trim();
+      if (!location) return;
+      counts.set(location, (counts.get(location) ?? 0) + 1);
+    });
+
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([label, count]) => ({ label, count }));
+  }, [sidebarRequests]);
+
+  const sidebarQuickFilters = useMemo(() => {
+    if (!session) return [];
+
+    if (session.role === 'operador') {
+      return [
+        {
+          id: 'operator-today',
+          label: 'Agenda do dia',
+          count: pendingToday,
+          helper: 'Solicitações previstas para hoje',
+          tone: 'accent' as const
+        },
+        {
+          id: 'operator-service',
+          label: 'Em atendimento',
+          count: sidebarRequests.filter((request) => request.status === 'em_atendimento').length,
+          helper: 'Triagem em andamento',
+          tone: 'warning' as const
+        },
+        {
+          id: 'operator-scheduled',
+          label: 'Agendadas',
+          count: sidebarRequests.filter((request) => request.status === 'agendada').length,
+          helper: 'Prontas para confirmação e saída',
+          tone: 'neutral' as const
+        }
+      ];
+    }
+
+    if (session.role === 'gerente') {
+      return [
+        {
+          id: 'manager-pending',
+          label: 'Sem motorista',
+          count: pendingDispatch,
+          helper: 'Distribuição ainda pendente',
+          tone: 'danger' as const
+        },
+        {
+          id: 'manager-scheduled',
+          label: 'Agendadas',
+          count: sidebarRequests.filter((request) => request.status === 'agendada').length,
+          helper: 'Rotas prontas para composição',
+          tone: 'accent' as const
+        },
+        {
+          id: 'manager-route',
+          label: 'Em rota',
+          count: inRoute,
+          helper: 'Operação em execução',
+          tone: 'warning' as const
+        }
+      ];
+    }
+
+    if (session.role === 'motorista') {
+      return [
+        {
+          id: 'driver-today',
+          label: 'Minha agenda',
+          count: pendingToday,
+          helper: 'Viagens previstas para hoje',
+          tone: 'accent' as const
+        },
+        {
+          id: 'driver-route',
+          label: 'Em rota',
+          count: inRoute,
+          helper: 'Viagens já iniciadas',
+          tone: 'warning' as const
+        },
+        {
+          id: 'driver-complete',
+          label: 'Concluídas',
+          count: sidebarRequests.filter((request) => request.status === 'concluida').length,
+          helper: 'Execução já finalizada',
+          tone: 'neutral' as const
+        }
+      ];
+    }
+
+    return [
+      {
+        id: 'admin-today',
+        label: 'Agenda do dia',
+        count: pendingToday,
+        helper: 'Volume operacional corrente',
+        tone: 'accent' as const
+      },
+      {
+        id: 'admin-route',
+        label: 'Em rota',
+        count: inRoute,
+        helper: 'Atendimentos em curso',
+        tone: 'warning' as const
+      },
+      {
+        id: 'admin-users',
+        label: 'Usuários',
+        count: users.length,
+        helper: 'Acesso e governança',
+        tone: 'neutral' as const
+      }
+    ];
+  }, [inRoute, pendingDispatch, pendingToday, session, sidebarRequests, users.length]);
+
   const patientView = !session || session.role === 'cliente';
   const isPatientSession = session?.role === 'cliente';
   const canManagePatients = session ? ['gerente', 'administrador'].includes(session.role) : false;
@@ -404,6 +556,115 @@ function App() {
         setOperatorView('novo');
       }
     }
+  }
+
+  function applySidebarDate(isoDate: string) {
+    const { start, end } = buildDayBounds(isoDate);
+    setAdvancedFilters({
+      ...advancedFilters,
+      dateRange: { start, end }
+    });
+  }
+
+  function handleSidebarDatePreset(preset: 'today' | 'tomorrow' | 'week' | 'clear') {
+    const now = new Date();
+    if (preset === 'clear') {
+      setAdvancedFilters({
+        ...advancedFilters,
+        dateRange: { start: null, end: null }
+      });
+      return;
+    }
+
+    if (preset === 'today') {
+      applySidebarDate(toLocalIsoDate(now));
+      return;
+    }
+
+    if (preset === 'tomorrow') {
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      applySidebarDate(toLocalIsoDate(tomorrow));
+      return;
+    }
+
+    const day = now.getDay();
+    const offset = day === 0 ? -6 : 1 - day;
+    const start = new Date(now);
+    start.setDate(now.getDate() + offset);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    end.setHours(23, 59, 59, 999);
+    setAdvancedFilters({
+      ...advancedFilters,
+      dateRange: { start, end }
+    });
+  }
+
+  function handleSidebarLocation(location: string) {
+    setAdvancedFilters({
+      ...advancedFilters,
+      location: advancedFilters.location === location ? '' : location
+    });
+    if (session?.role === 'operador') {
+      setActiveNav('solicitacoes');
+      setOperatorView('recentes');
+    }
+  }
+
+  function handleSidebarQuickFilter(filterId: string) {
+    if (!session) return;
+
+    if (filterId.endsWith('today')) {
+      handleSidebarDatePreset('today');
+    }
+
+    if (session.role === 'operador') {
+      setActiveNav('solicitacoes');
+      setOperatorView('recentes');
+      if (filterId === 'operator-service') {
+        setAdvancedFilters({ ...advancedFilters, statuses: ['em_atendimento'] });
+      } else if (filterId === 'operator-scheduled') {
+        setAdvancedFilters({ ...advancedFilters, statuses: ['agendada'] });
+      }
+      return;
+    }
+
+    if (session.role === 'gerente') {
+      setActiveNav('distribuicao');
+      if (filterId === 'manager-pending') {
+        setAdvancedFilters({ ...advancedFilters, statuses: ['aguardando_distribuicao'] });
+      } else if (filterId === 'manager-scheduled') {
+        setAdvancedFilters({ ...advancedFilters, statuses: ['agendada'] });
+      } else if (filterId === 'manager-route') {
+        setAdvancedFilters({ ...advancedFilters, statuses: ['em_rota'] });
+      }
+      return;
+    }
+
+    if (session.role === 'motorista') {
+      setActiveNav('agenda');
+      if (filterId === 'driver-route') {
+        setAdvancedFilters({ ...advancedFilters, statuses: ['em_rota'] });
+      } else if (filterId === 'driver-complete') {
+        setAdvancedFilters({ ...advancedFilters, statuses: ['concluida'] });
+      }
+      return;
+    }
+
+    if (filterId === 'admin-route') {
+      setAdvancedFilters({ ...advancedFilters, statuses: ['em_rota'] });
+      setActiveNav('viagens');
+      return;
+    }
+
+    if (filterId === 'admin-users') {
+      setActiveNav('usuarios');
+      return;
+    }
+
+    setActiveNav('viagens');
   }
 
   async function confirmResetClientPin() {
@@ -842,6 +1103,15 @@ function App() {
           inRoute={inRoute}
           pendingConfirmations={pendingConfirmations}
           pendingPinChange={pendingPinChange}
+          requests={sidebarRequests}
+          selectedDate={selectedSidebarDate}
+          onDateSelect={applySidebarDate}
+          onDatePresetSelect={handleSidebarDatePreset}
+          quickFilters={sidebarQuickFilters}
+          onQuickFilterSelect={handleSidebarQuickFilter}
+          locations={sidebarLocations}
+          activeLocation={advancedFilters.location}
+          onLocationSelect={handleSidebarLocation}
         />
       ) : null}
 
