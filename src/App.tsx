@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { DragEvent, FormEvent } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
-import { demoUsers, vehicleFleet } from './data';
+import { demoUsers, fleet, vehicleFleet } from './data';
 import { listClients, subscribePush, dispatchNotification } from './lib/api';
 import { formatCep, formatDocument, normalizeCep, normalizeDocument } from './lib/persistence';
-import type { AccessRole, RequestStatus } from './types';
+import type { AccessRole, RequestStatus, TripRequest } from './types';
 import { useClients } from './hooks/useClients';
 import { useRequests } from './hooks/useRequests';
 import { useSession } from './hooks/useSession';
@@ -66,6 +66,57 @@ function buildDayBounds(isoDate: string) {
   const start = new Date(year, month - 1, day, 0, 0, 0, 0);
   const end = new Date(year, month - 1, day, 23, 59, 59, 999);
   return { start, end };
+}
+
+type OperationalConflict = {
+  id: string;
+  category: 'driver_overlap' | 'vehicle_maintenance' | 'daily_overload' | 'vehicle_overlap';
+  title: string;
+  detail: string;
+  tone: 'warning' | 'danger';
+  relatedRequestIds: string[];
+};
+
+type RouteSuggestion = {
+  id: string;
+  title: string;
+  detail: string;
+  count: number;
+  requestIds: string[];
+  date: string;
+  destination: string;
+  facility: string;
+  recommendedDriver: string;
+  recommendedVehicle: string;
+};
+
+function parseOperationalDateTime(value: string) {
+  if (!value) return null;
+  if (value.includes('T')) {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  const [datePart = '', timePart = ''] = value.split(' ');
+  if (datePart.includes('/')) {
+    const [day, month, year] = datePart.split('/').map(Number);
+    if (!day || !month || !year) return null;
+    const [hours = 0, minutes = 0] = timePart.split(':').map(Number);
+    return new Date(year, month - 1, day, hours || 0, minutes || 0, 0, 0);
+  }
+
+  if (datePart.includes('-')) {
+    const [year, month, day] = datePart.split('-').map(Number);
+    const [hours = 0, minutes = 0] = timePart.split(':').map(Number);
+    if (!year || !month || !day) return null;
+    return new Date(year, month - 1, day, hours || 0, minutes || 0, 0, 0);
+  }
+
+  return null;
+}
+
+function rangesOverlap(startA: Date, endA: Date, startB: Date, endB: Date) {
+  return startA <= endB && startB <= endA;
 }
 
 function App() {
@@ -667,6 +718,70 @@ function App() {
     setActiveNav('viagens');
   }
 
+  function handleSidebarConflictSelect(conflictId: string) {
+    const conflict = operationalConflicts.find((item) => item.id === conflictId);
+    if (!conflict) return;
+
+    if (session?.role === 'gerente') {
+      setActiveNav('distribuicao');
+    } else if (session?.role === 'operador') {
+      setActiveNav('solicitacoes');
+      setOperatorView('recentes');
+    } else {
+      setActiveNav('detalhes');
+    }
+
+    const firstRequestId = conflict.relatedRequestIds[0];
+    if (firstRequestId) {
+      setActiveRequestId(firstRequestId);
+      setRouteActiveId(firstRequestId);
+    }
+
+    if (conflict.category === 'driver_overlap') {
+      setAdvancedFilters({ ...advancedFilters, statuses: ['agendada', 'em_rota'] });
+    } else if (conflict.category === 'vehicle_maintenance') {
+      setActiveNav(session?.role === 'gerente' ? 'frota' : activeNav);
+    } else if (conflict.category === 'daily_overload') {
+      const date = conflict.id.replace('load-', '');
+      applySidebarDate(date);
+    }
+  }
+
+  async function handleApplyRouteSuggestion(suggestion: RouteSuggestion) {
+    if (!suggestion.requestIds.length) return;
+    const nextDriver = routeDriver || suggestion.recommendedDriver;
+    const nextVehicle = routeVehicle || suggestion.recommendedVehicle;
+
+    if (!nextDriver || !nextVehicle) {
+      pushToast('error', 'Defina motorista e veículo para aplicar a sugestão automática.');
+      return;
+    }
+
+    if (!routeDriver) setRouteDriver(nextDriver);
+    if (!routeVehicle) setRouteVehicle(nextVehicle);
+    if (!routeDate && suggestion.date) setRouteDate(suggestion.date);
+
+    const nextDate = routeDate || suggestion.date;
+    const merged = Array.from(new Set([...routeRequests, ...suggestion.requestIds]));
+    setRouteRequests(merged);
+    setRouteActiveId(suggestion.requestIds[0] ?? null);
+
+    for (let index = 0; index < suggestion.requestIds.length; index += 1) {
+      const requestId = suggestion.requestIds[index];
+      if (!requestId) continue;
+      const order = merged.indexOf(requestId) + 1;
+      await patchRequest(requestId, {
+        driver: nextDriver,
+        vehicle: nextVehicle,
+        status: 'agendada',
+        routeDate: nextDate || undefined,
+        routeOrder: order
+      });
+    }
+
+    pushToast('success', `Sugestão aplicada para ${suggestion.count} solicitações de ${suggestion.title}.`);
+  }
+
   async function confirmResetClientPin() {
     return new Promise<void>((resolve) => {
       confirmationModal.showConfirmation('Deseja resetar o PIN do paciente para 0000?', async () => {
@@ -859,6 +974,154 @@ function App() {
     );
     return eligible.filter((request) => !routeRequests.includes(request.id));
   }, [visibleRequests, routeRequests]);
+
+  const operationalConflicts = useMemo<OperationalConflict[]>(() => {
+    const conflicts: OperationalConflict[] = [];
+    const relevantRequests = sidebarRequests.filter((request) =>
+      !['cancelada', 'concluida'].includes(request.status)
+    );
+
+    const selectedDateRequests = selectedSidebarDate
+      ? relevantRequests.filter((request) => splitDateTime(request.departureAt).date === selectedSidebarDate)
+      : relevantRequests;
+
+    const overlapCandidates = selectedDateRequests.map((request) => {
+      const start = parseOperationalDateTime(request.departureAt);
+      const end =
+        parseOperationalDateTime(request.arrivalEta) ??
+        (start ? new Date(start.getTime() + 90 * 60 * 1000) : null);
+      return { request, start, end };
+    }).filter((item) => item.start && item.end);
+
+    for (let index = 0; index < overlapCandidates.length; index += 1) {
+      const current = overlapCandidates[index];
+      if (!current?.start || !current?.end) continue;
+
+      for (let nextIndex = index + 1; nextIndex < overlapCandidates.length; nextIndex += 1) {
+        const next = overlapCandidates[nextIndex];
+        if (!next?.start || !next?.end) continue;
+        if (!rangesOverlap(current.start, current.end, next.start, next.end)) continue;
+
+        if (
+          current.request.driver &&
+          next.request.driver &&
+          current.request.driver.toLowerCase() === next.request.driver.toLowerCase()
+        ) {
+          conflicts.push({
+            id: `driver-${current.request.id}-${next.request.id}`,
+            category: 'driver_overlap',
+            title: `Motorista duplicado: ${current.request.driver}`,
+            detail: `${current.request.protocol} e ${next.request.protocol} estão sobrepostos no mesmo período.`,
+            tone: 'danger',
+            relatedRequestIds: [current.request.id, next.request.id]
+          });
+        }
+
+        if (
+          current.request.vehicle &&
+          next.request.vehicle &&
+          current.request.vehicle.toLowerCase() === next.request.vehicle.toLowerCase()
+        ) {
+          conflicts.push({
+            id: `vehicle-${current.request.id}-${next.request.id}`,
+            category: 'vehicle_overlap',
+            title: `Veículo duplicado: ${current.request.vehicle}`,
+            detail: `${current.request.protocol} e ${next.request.protocol} competem pelo mesmo veículo.`,
+            tone: 'danger',
+            relatedRequestIds: [current.request.id, next.request.id]
+          });
+        }
+      }
+    }
+
+    selectedDateRequests.forEach((request) => {
+      if (!request.vehicle) return;
+      const fleetStatus = fleet.find((item) => item.role === 'Veículo' && item.name.toLowerCase() === request.vehicle.toLowerCase());
+      const vehicleRecord = vehicleFleet.find((item) => item.name.toLowerCase() === request.vehicle.toLowerCase());
+      const nearOilLimit = vehicleRecord ? vehicleRecord.oil.nextKm - vehicleRecord.odometer <= 1200 : false;
+      if (fleetStatus?.status === 'manutenção' || nearOilLimit) {
+        conflicts.push({
+          id: `maintenance-${request.id}`,
+          category: 'vehicle_maintenance',
+          title: `Veículo com restrição: ${request.vehicle}`,
+          detail: fleetStatus?.status === 'manutenção'
+            ? `${request.protocol} está alocado em veículo marcado em manutenção.`
+            : `${request.protocol} usa veículo próximo da revisão (${vehicleRecord?.oil.nextKm.toLocaleString('pt-BR')} km).`,
+          tone: 'warning',
+          relatedRequestIds: [request.id]
+        });
+      }
+    });
+
+    const dateLoadMap = new Map<string, TripRequest[]>();
+    relevantRequests.forEach((request) => {
+      const date = splitDateTime(request.departureAt).date;
+      if (!date) return;
+      const list = dateLoadMap.get(date) ?? [];
+      list.push(request);
+      dateLoadMap.set(date, list);
+    });
+
+    dateLoadMap.forEach((dayRequests, date) => {
+      const threshold = session?.role === 'gerente' ? 8 : 10;
+      if (dayRequests.length > threshold) {
+        conflicts.push({
+          id: `load-${date}`,
+          category: 'daily_overload',
+          title: `Carga elevada em ${date}`,
+          detail: `${dayRequests.length} solicitações no mesmo dia exigem revisão de capacidade.`,
+          tone: 'warning',
+          relatedRequestIds: dayRequests.map((request) => request.id)
+        });
+      }
+    });
+
+    return conflicts.slice(0, 6);
+  }, [selectedSidebarDate, session?.role, sidebarRequests]);
+
+  const routeSuggestions = useMemo<RouteSuggestion[]>(() => {
+    const pool = backlogRequests.filter((request) => {
+      const requestDate = splitDateTime(request.departureAt).date;
+      if (routeDate && requestDate !== routeDate) return false;
+      return true;
+    });
+
+    const grouped = new Map<string, TripRequest[]>();
+    pool.forEach((request) => {
+      const date = splitDateTime(request.departureAt).date;
+      const destination = request.destination.trim();
+      const facility = (request.destinationFacility || request.destination).trim();
+      const key = [date, destination, facility].join('|');
+      const list = grouped.get(key) ?? [];
+      list.push(request);
+      grouped.set(key, list);
+    });
+
+    return Array.from(grouped.entries())
+      .map(([key, items]) => {
+        const [date = '', destination = '', facility = ''] = key.split('|');
+        const destinationMatch = requests.find((request) =>
+          request.destination.trim().toLowerCase() === destination.toLowerCase() &&
+          request.driver &&
+          request.vehicle
+        );
+        return {
+          id: key,
+          title: facility || destination,
+          detail: `${date || 'Sem data'} · ${destination || 'Destino não definido'}`,
+          count: items.length,
+          requestIds: items.map((item) => item.id),
+          date,
+          destination,
+          facility,
+          recommendedDriver: routeDriver || destinationMatch?.driver || availableDrivers[0] || '',
+          recommendedVehicle: routeVehicle || destinationMatch?.vehicle || availableVehicles[0] || ''
+        };
+      })
+      .filter((item) => item.count >= 2)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+  }, [availableDrivers, availableVehicles, backlogRequests, requests, routeDate, routeDriver, routeVehicle]);
 
   function addMinutesToTime(time: string, minutes: number) {
     if (!time) return '';
@@ -1112,6 +1375,8 @@ function App() {
           locations={sidebarLocations}
           activeLocation={advancedFilters.location}
           onLocationSelect={handleSidebarLocation}
+          conflicts={operationalConflicts}
+          onConflictSelect={handleSidebarConflictSelect}
         />
       ) : null}
 
@@ -1707,6 +1972,69 @@ function App() {
                 </div>
               </div>
             </div>
+
+            {(operationalConflicts.length || routeSuggestions.length) ? (
+              <div className="manager-advisory-grid">
+                <article className="glass-card panel-card manager-advisory">
+                  <div className="section-head compact">
+                    <p className="eyebrow">Guardrails</p>
+                    <h3>Conflitos operacionais</h3>
+                  </div>
+                  {operationalConflicts.length ? (
+                    <div className="manager-alert-list">
+                      {operationalConflicts.map((conflict) => (
+                        <button
+                          key={conflict.id}
+                          type="button"
+                          className={`manager-alert-card tone-${conflict.tone}`}
+                          onClick={() => handleSidebarConflictSelect(conflict.id)}
+                        >
+                          <strong>{conflict.title}</strong>
+                          <span>{conflict.detail}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="empty-state compact">
+                      <div className="empty-icon">🛡️</div>
+                      <strong>Sem conflitos no recorte atual</strong>
+                      <p>Motoristas, veículos e carga diária estão coerentes até aqui.</p>
+                    </div>
+                  )}
+                </article>
+
+                <article className="glass-card panel-card manager-advisory">
+                  <div className="section-head compact">
+                    <p className="eyebrow">Sugestão automática</p>
+                    <h3>Agrupamentos recomendados</h3>
+                  </div>
+                  {routeSuggestions.length ? (
+                    <div className="manager-suggestion-list">
+                      {routeSuggestions.map((suggestion) => (
+                        <div key={suggestion.id} className="manager-suggestion-card">
+                          <div>
+                            <strong>{suggestion.title}</strong>
+                            <span>{suggestion.detail}</span>
+                            <small>
+                              Sugestão: {suggestion.recommendedDriver || 'definir motorista'} · {suggestion.recommendedVehicle || 'definir veículo'}
+                            </small>
+                          </div>
+                          <button className="cta ghost" type="button" onClick={() => handleApplyRouteSuggestion(suggestion)}>
+                            Aplicar ({suggestion.count})
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="empty-state compact">
+                      <div className="empty-icon">🧠</div>
+                      <strong>Sem agrupamentos fortes no momento</strong>
+                      <p>As sugestões aparecem quando houver pelo menos duas solicitações com mesma data e destino.</p>
+                    </div>
+                  )}
+                </article>
+              </div>
+            ) : null}
 
             <div className="manager-layout">
               <div className="manager-col backlog">

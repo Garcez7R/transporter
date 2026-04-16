@@ -20,6 +20,13 @@ type SidebarLocation = {
   count: number;
 };
 
+type SidebarConflict = {
+  id: string;
+  title: string;
+  detail: string;
+  tone: 'warning' | 'danger';
+};
+
 type HeaderSidebarProps = {
   session: SessionUser;
   roleLabels: Record<AccessRole, string>;
@@ -42,6 +49,8 @@ type HeaderSidebarProps = {
   locations: SidebarLocation[];
   activeLocation: string;
   onLocationSelect: (location: string) => void;
+  conflicts: SidebarConflict[];
+  onConflictSelect: (conflictId: string) => void;
 };
 
 type CalendarDay = {
@@ -137,7 +146,9 @@ export function HeaderSidebar({
   onQuickFilterSelect,
   locations,
   activeLocation,
-  onLocationSelect
+  onLocationSelect,
+  conflicts,
+  onConflictSelect
 }: HeaderSidebarProps) {
   const [monthCursor, setMonthCursor] = useState(() => {
     if (selectedDate) {
@@ -349,6 +360,25 @@ export function HeaderSidebar({
                 >
                   <span>{location.label}</span>
                   <strong>{location.count}</strong>
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {conflicts.length ? (
+          <section className="saas-sidebar-module">
+            <span className="saas-module-label">Conflitos operacionais</span>
+            <div className="saas-conflict-list">
+              {conflicts.map((conflict) => (
+                <button
+                  key={conflict.id}
+                  type="button"
+                  className={`saas-conflict-card tone-${conflict.tone}`}
+                  onClick={() => onConflictSelect(conflict.id)}
+                >
+                  <strong>{conflict.title}</strong>
+                  <span>{conflict.detail}</span>
                 </button>
               ))}
             </div>
