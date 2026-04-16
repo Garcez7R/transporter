@@ -54,6 +54,72 @@ export interface AuditItem {
   at: string;
 }
 
+export interface FuelLogItem {
+  id: string;
+  odometerKm: number;
+  liters: number;
+  fuelType?: string;
+  notes?: string;
+  at: string;
+}
+
+export interface GpsPointItem {
+  id: string;
+  lat: number;
+  lng: number;
+  accuracy?: number;
+  speed?: number;
+  at: string;
+}
+
+export interface TelemetrySummary {
+  fuelLogsCount: number;
+  gpsPingsCount: number;
+  lastFuel?: FuelLogItem | null;
+  lastGps?: GpsPointItem | null;
+}
+
+export interface OperationalConflict {
+  id: string;
+  category: 'driver_overlap' | 'vehicle_maintenance' | 'daily_overload' | 'vehicle_overlap';
+  title: string;
+  detail: string;
+  tone: 'warning' | 'danger';
+  relatedRequestIds: string[];
+  date?: string;
+}
+
+export interface RouteSuggestion {
+  id: string;
+  title: string;
+  detail: string;
+  count: number;
+  requestIds: string[];
+  date: string;
+  destination: string;
+  facility: string;
+  recommendedDriver: string;
+  recommendedVehicle: string;
+}
+
+export interface MonitoringSnapshot {
+  generatedAt: string;
+  summary: {
+    activeRequests: number;
+    inRoute: number;
+    pendingDispatch: number;
+    completed: number;
+    clients: number;
+    gpsPings: number;
+    fuelLogs: number;
+  };
+  topDates: Array<{ date: string; count: number }>;
+  roleCounts: Array<{ role: string; count: number }>;
+  conflicts: OperationalConflict[];
+  suggestions: RouteSuggestion[];
+  recentAudit: AuditItem[];
+}
+
 export interface TripRequest {
   id: string;
   protocol: string;
@@ -80,6 +146,7 @@ export interface TripRequest {
   clientConfirmedAt?: string;
   messages: MessageItem[];
   audit: AuditItem[];
+  telemetry?: TelemetrySummary;
 }
 
 export interface ProfileSummary {
@@ -168,6 +235,19 @@ export type RequestPatch = Partial<
   >
 > & {
   message?: string;
+  fuelLog?: {
+    odometerKm: number;
+    liters: number;
+    fuelType?: string;
+    notes?: string;
+  };
+  gpsPoint?: {
+    lat: number;
+    lng: number;
+    accuracy?: number;
+    speed?: number;
+    recordedAt?: string;
+  };
 };
 
 export interface UserFormState {

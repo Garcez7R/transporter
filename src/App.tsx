@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import type { DragEvent, FormEvent } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { demoUsers, fleet, vehicleFleet } from './data';
-import { listClients, subscribePush, dispatchNotification } from './lib/api';
+import { dispatchNotification, getMonitoring, getPreferences, listClients, logRequestGps, savePreferences, subscribePush } from './lib/api';
 import { formatCep, formatDocument, normalizeCep, normalizeDocument } from './lib/persistence';
-import type { AccessRole, RequestStatus, TripRequest } from './types';
+import type { AccessRole, MonitoringSnapshot, OperationalConflict, RequestStatus, RouteSuggestion, TripRequest } from './types';
 import { useClients } from './hooks/useClients';
 import { useRequests } from './hooks/useRequests';
 import { useSession } from './hooks/useSession';
@@ -85,28 +85,6 @@ function escapeCsv(value: string | number | boolean | null | undefined) {
   }
   return text;
 }
-
-type OperationalConflict = {
-  id: string;
-  category: 'driver_overlap' | 'vehicle_maintenance' | 'daily_overload' | 'vehicle_overlap';
-  title: string;
-  detail: string;
-  tone: 'warning' | 'danger';
-  relatedRequestIds: string[];
-};
-
-type RouteSuggestion = {
-  id: string;
-  title: string;
-  detail: string;
-  count: number;
-  requestIds: string[];
-  date: string;
-  destination: string;
-  facility: string;
-  recommendedDriver: string;
-  recommendedVehicle: string;
-};
 
 function parseOperationalDateTime(value: string) {
   if (!value) return null;
@@ -305,6 +283,7 @@ function App() {
   const [activeVehicleId, setActiveVehicleId] = useState(vehicleFleet[0]?.id ?? null);
   const [showFuelForm, setShowFuelForm] = useState(false);
   const [fuelForm, setFuelForm] = useState({ odometer: '', liters: '' });
+  const [monitoringSnapshot, setMonitoringSnapshot] = useState<MonitoringSnapshot | null>(null);
   const [pushStatus, setPushStatus] = useState<'supported' | 'unsupported' | 'granted' | 'denied' | 'default'>(() => {
     if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported';
     return Notification.permission;
@@ -583,6 +562,43 @@ function App() {
     setPushStatus(Notification.permission);
     registerPushSubscription().catch(() => undefined);
   }, [session?.token]);
+
+  useEffect(() => {
+    if (!session?.token) {
+      setMonitoringSnapshot(null);
+      return;
+    }
+
+    let cancelled = false;
+    getMonitoring(session.token)
+      .then((response) => {
+        if (!cancelled) setMonitoringSnapshot(response.snapshot);
+      })
+      .catch(() => {
+        if (!cancelled) setMonitoringSnapshot(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.token, requests, users, clients]);
+
+  useEffect(() => {
+    if (!session?.token) return;
+
+    let cancelled = false;
+    getPreferences(session.token)
+      .then((response) => {
+        if (cancelled) return;
+        setThemeMode(response.preferences.themeMode);
+        setPatientFontLarge(response.preferences.patientFontLarge);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.token, setPatientFontLarge, setThemeMode]);
 
   useEffect(() => {
     if (!routeDriver || !routeVehicle || !routeDate) {
@@ -1108,7 +1124,7 @@ function App() {
     return eligible.filter((request) => !routeRequests.includes(request.id));
   }, [visibleRequests, routeRequests]);
 
-  const operationalConflicts = useMemo<OperationalConflict[]>(() => {
+  const fallbackOperationalConflicts = useMemo<OperationalConflict[]>(() => {
     const conflicts: OperationalConflict[] = [];
     const relevantRequests = sidebarRequests.filter((request) =>
       !['cancelada', 'concluida'].includes(request.status)
@@ -1212,7 +1228,7 @@ function App() {
     return conflicts.slice(0, 6);
   }, [selectedSidebarDate, session?.role, sidebarRequests]);
 
-  const routeSuggestions = useMemo<RouteSuggestion[]>(() => {
+  const fallbackRouteSuggestions = useMemo<RouteSuggestion[]>(() => {
     const pool = backlogRequests.filter((request) => {
       const requestDate = splitDateTime(request.departureAt).date;
       if (routeDate && requestDate !== routeDate) return false;
@@ -1255,6 +1271,18 @@ function App() {
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
   }, [availableDrivers, availableVehicles, backlogRequests, requests, routeDate, routeDriver, routeVehicle]);
+
+  const operationalConflicts = useMemo(() => {
+    const source = monitoringSnapshot?.conflicts?.length ? monitoringSnapshot.conflicts : fallbackOperationalConflicts;
+    if (!selectedSidebarDate) return source;
+    return source.filter((conflict) => !conflict.date || conflict.date === selectedSidebarDate);
+  }, [fallbackOperationalConflicts, monitoringSnapshot?.conflicts, selectedSidebarDate]);
+
+  const routeSuggestions = useMemo(() => {
+    const source = monitoringSnapshot?.suggestions?.length ? monitoringSnapshot.suggestions : fallbackRouteSuggestions;
+    if (!routeDate) return source;
+    return source.filter((suggestion) => !suggestion.date || suggestion.date === routeDate);
+  }, [fallbackRouteSuggestions, monitoringSnapshot?.suggestions, routeDate]);
 
   function addMinutesToTime(time: string, minutes: number) {
     if (!time) return '';
@@ -1416,12 +1444,21 @@ function App() {
     }
   }
 
-  function handleDriverFuelSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleDriverFuelSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!activeRequest) return;
     if (!fuelForm.odometer.trim() || !fuelForm.liters.trim()) {
       pushToast('error', 'Informe km atual e litros abastecidos.');
       return;
     }
+
+    await patchRequest(activeRequest.id, {
+      fuelLog: {
+        odometerKm: Number(fuelForm.odometer.replace(',', '.')),
+        liters: Number(fuelForm.liters.replace(',', '.'))
+      }
+    });
+
     showBanner('success', 'Abastecimento registrado para a viagem.');
     setFuelForm({ odometer: '', liters: '' });
     setShowFuelForm(false);
@@ -1855,6 +1892,7 @@ function App() {
                 requests={requests}
                 users={users}
                 clients={clients}
+                snapshot={monitoringSnapshot}
               />
             ) : operatorView === 'configuracoes' ? (
               <Settings
@@ -1862,8 +1900,20 @@ function App() {
                 themeMode={themeMode}
                 patientFontLarge={patientFontLarge}
                 pushStatus={pushStatus}
-                onToggleTheme={() => setThemeMode((current) => (current === 'dark' ? 'light' : 'dark'))}
-                onTogglePatientFont={() => setPatientFontLarge((current) => !current)}
+                onToggleTheme={() => {
+                  const nextTheme = themeMode === 'dark' ? 'light' : 'dark';
+                  setThemeMode(nextTheme);
+                  if (session.token) {
+                    savePreferences({ themeMode: nextTheme, patientFontLarge }, session.token).catch(() => undefined);
+                  }
+                }}
+                onTogglePatientFont={() => {
+                  const nextFont = !patientFontLarge;
+                  setPatientFontLarge(nextFont);
+                  if (session.token) {
+                    savePreferences({ themeMode, patientFontLarge: nextFont }, session.token).catch(() => undefined);
+                  }
+                }}
                 onRequestPushPermission={async () => {
                   const granted = await registerPushSubscription().catch(() => false);
                   setPushStatus(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported');
@@ -1882,6 +1932,9 @@ function App() {
                   confirmationModal.showConfirmation('Deseja resetar tema, fonte ampliada e preferências locais?', () => {
                     setThemeMode('dark');
                     setPatientFontLarge(false);
+                    if (session.token) {
+                      savePreferences({ themeMode: 'dark', patientFontLarge: false }, session.token).catch(() => undefined);
+                    }
                     pushToast('success', 'Preferências locais resetadas.');
                   });
                 }}
@@ -2573,9 +2626,29 @@ function App() {
                         </button>
                       </form>
                     ) : (
-                      <p className="helper-text">Registre odômetro e litros para manter o histórico do veículo.</p>
+                      <p className="helper-text">
+                        Registre odômetro e litros para manter o histórico do veículo.
+                        {activeRequest.telemetry?.lastFuel
+                          ? ` Último lançamento: ${activeRequest.telemetry.lastFuel.liters.toFixed(1)} L em ${activeRequest.telemetry.lastFuel.at}.`
+                          : ''}
+                      </p>
                     )}
                   </div>
+                  <GPSTracking
+                    request={activeRequest}
+                    onLocationUpdate={(location) => {
+                      if (!session.token) return;
+                      logRequestGps(
+                        activeRequest.id,
+                        {
+                          lat: location.lat,
+                          lng: location.lng,
+                          recordedAt: location.timestamp.toISOString()
+                        },
+                        session.token
+                      ).catch(() => undefined);
+                    }}
+                  />
                 </div>
               ) : null}
             </article>

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { AccessRole, ClientRow, TripRequest, UserRow } from '../types';
+import type { AccessRole, ClientRow, MonitoringSnapshot, TripRequest, UserRow } from '../types';
 import { splitDateTime } from '../lib/utils';
 
 type MonitoringDashboardProps = {
@@ -7,9 +7,10 @@ type MonitoringDashboardProps = {
   requests: TripRequest[];
   users: UserRow[];
   clients: ClientRow[];
+  snapshot?: MonitoringSnapshot | null;
 };
 
-export function MonitoringDashboard({ userRole, requests, users, clients }: MonitoringDashboardProps) {
+export function MonitoringDashboard({ userRole, requests, users, clients, snapshot }: MonitoringDashboardProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'ops' | 'audit'>('overview');
 
   const overview = useMemo(() => {
@@ -43,11 +44,27 @@ export function MonitoringDashboard({ userRole, requests, users, clients }: Moni
     }, {});
   }, [users]);
 
+  const summary = snapshot?.summary ?? {
+    activeRequests: overview.activeRequests,
+    inRoute: overview.inRoute,
+    pendingDispatch: overview.pendingDispatch,
+    completed: overview.completed,
+    clients: clients.length,
+    gpsPings: 0,
+    fuelLogs: 0
+  };
+
+  const topDates = snapshot?.topDates ?? overview.topDates.map(([date, count]) => ({ date, count }));
+  const resolvedRoleCounts = snapshot?.roleCounts ?? Object.entries(roleCounts).map(([role, count]) => ({ role, count }));
+  const recentAudit = snapshot?.recentAudit ?? [];
+  const conflicts = snapshot?.conflicts ?? [];
+  const suggestions = snapshot?.suggestions ?? [];
+
   return (
     <div className="monitoring-dashboard admin-monitoring">
       <div className="section-head">
-        <p className="eyebrow">Monitoramento beta</p>
-        <h2>Leituras operacionais confiáveis</h2>
+        <p className="eyebrow">Monitoramento operacional</p>
+        <h2>Leituras unificadas do backend</h2>
       </div>
 
       <div className="settings-tabs">
@@ -68,26 +85,38 @@ export function MonitoringDashboard({ userRole, requests, users, clients }: Moni
         <div className="dashboard-metrics">
           <div className="metric-card glass-card">
             <div className="metric-content">
-              <strong>{overview.activeRequests}</strong>
+              <strong>{summary.activeRequests}</strong>
               <span>Solicitações ativas</span>
             </div>
           </div>
           <div className="metric-card glass-card">
             <div className="metric-content">
-              <strong>{overview.inRoute}</strong>
+              <strong>{summary.inRoute}</strong>
               <span>Em rota</span>
             </div>
           </div>
           <div className="metric-card glass-card">
             <div className="metric-content">
-              <strong>{overview.pendingDispatch}</strong>
+              <strong>{summary.pendingDispatch}</strong>
               <span>Aguardando distribuição</span>
             </div>
           </div>
           <div className="metric-card glass-card">
             <div className="metric-content">
-              <strong>{clients.length}</strong>
+              <strong>{summary.clients}</strong>
               <span>Pacientes cadastrados</span>
+            </div>
+          </div>
+          <div className="metric-card glass-card">
+            <div className="metric-content">
+              <strong>{summary.gpsPings}</strong>
+              <span>Pings de GPS</span>
+            </div>
+          </div>
+          <div className="metric-card glass-card">
+            <div className="metric-content">
+              <strong>{summary.fuelLogs}</strong>
+              <span>Abastecimentos</span>
             </div>
           </div>
         </div>
@@ -101,8 +130,8 @@ export function MonitoringDashboard({ userRole, requests, users, clients }: Moni
               <h3>Concentração operacional</h3>
             </div>
             <div className="timeline">
-              {overview.topDates.length ? (
-                overview.topDates.map(([date, count], index) => (
+              {topDates.length ? (
+                topDates.map(({ date, count }, index) => (
                   <li key={date}>
                     <span>{index + 1}</span>
                     <div>
@@ -129,7 +158,7 @@ export function MonitoringDashboard({ userRole, requests, users, clients }: Moni
               <h3>Distribuição por perfil</h3>
             </div>
             <div className="timeline">
-              {Object.entries(roleCounts).map(([role, count], index) => (
+              {resolvedRoleCounts.map(({ role, count }, index) => (
                 <li key={role}>
                   <span>{index + 1}</span>
                   <div>
@@ -140,20 +169,88 @@ export function MonitoringDashboard({ userRole, requests, users, clients }: Moni
               ))}
             </div>
           </article>
+
+          <article className="glass-card panel-card">
+            <div className="section-head compact">
+              <p className="eyebrow">Conflitos</p>
+              <h3>Guardrails do backend</h3>
+            </div>
+            <div className="timeline">
+              {conflicts.length ? (
+                conflicts.slice(0, 6).map((conflict, index) => (
+                  <li key={conflict.id}>
+                    <span>{index + 1}</span>
+                    <div>
+                      <strong>{conflict.title}</strong>
+                      <small>{conflict.detail}</small>
+                    </div>
+                  </li>
+                ))
+              ) : (
+                <li>
+                  <span>0</span>
+                  <div>
+                    <strong>Sem conflitos críticos</strong>
+                    <small>As regras atuais não encontraram sobreposição ou excesso de carga.</small>
+                  </div>
+                </li>
+              )}
+            </div>
+          </article>
+
+          <article className="glass-card panel-card">
+            <div className="section-head compact">
+              <p className="eyebrow">Sugestões</p>
+              <h3>Agrupamentos automáticos</h3>
+            </div>
+            <div className="timeline">
+              {suggestions.length ? (
+                suggestions.slice(0, 6).map((suggestion, index) => (
+                  <li key={suggestion.id}>
+                    <span>{index + 1}</span>
+                    <div>
+                      <strong>{suggestion.title}</strong>
+                      <small>{suggestion.detail} · {suggestion.count} solicitação(ões)</small>
+                    </div>
+                  </li>
+                ))
+              ) : (
+                <li>
+                  <span>0</span>
+                  <div>
+                    <strong>Sem agrupamentos fortes</strong>
+                    <small>As sugestões aparecem quando houver concentração por data e destino.</small>
+                  </div>
+                </li>
+              )}
+            </div>
+          </article>
         </div>
       ) : null}
 
       {activeTab === 'audit' && userRole === 'administrador' ? (
         <article className="glass-card panel-card">
           <div className="section-head compact">
-            <p className="eyebrow">Auditoria beta</p>
-            <h3>Estado atual</h3>
+            <p className="eyebrow">Auditoria central</p>
+            <h3>Eventos recentes</h3>
           </div>
-          <div className="detail-stack">
-            <p><strong>Solicitações auditáveis:</strong> {requests.length}</p>
-            <p><strong>Usuários visíveis:</strong> {users.length}</p>
-            <p><strong>Pacientes visíveis:</strong> {clients.length}</p>
-            <p><strong>Observação:</strong> a trilha de auditoria detalhada ainda depende de endpoint consolidado no backend.</p>
+          <div className="audit-stack">
+            {recentAudit.length ? (
+              recentAudit.map((item) => (
+                <div className="audit-item" key={item.id}>
+                  <strong>{item.label}</strong>
+                  {item.details ? <small>{item.details}</small> : null}
+                  {item.actor ? <span>{item.actor}</span> : null}
+                  <span>{item.at}</span>
+                </div>
+              ))
+            ) : (
+              <div className="empty-state compact">
+                <div className="empty-icon"></div>
+                <strong>Sem eventos recentes</strong>
+                <p>Os registros de auditoria aparecem aqui conforme a operação evolui.</p>
+              </div>
+            )}
           </div>
         </article>
       ) : null}

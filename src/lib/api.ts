@@ -1,4 +1,4 @@
-import type { SessionUser, TripRequest, RequestStatus } from '../types';
+import type { MonitoringSnapshot, SessionUser, TripRequest, RequestStatus } from '../types';
 
 type ApiSession = Omit<SessionUser, 'token'> & { token?: string };
 
@@ -113,6 +113,19 @@ export async function updateRequest(
     routeDate?: string;
     routeOrder?: number | null;
     message?: string;
+    fuelLog?: {
+      odometerKm: number;
+      liters: number;
+      fuelType?: string;
+      notes?: string;
+    };
+    gpsPoint?: {
+      lat: number;
+      lng: number;
+      accuracy?: number;
+      speed?: number;
+      recordedAt?: string;
+    };
   },
   token?: string
 ) {
@@ -124,6 +137,33 @@ export async function updateRequest(
     },
     token
   );
+}
+
+export async function logRequestFuel(
+  id: string,
+  payload: {
+    odometerKm: number;
+    liters: number;
+    fuelType?: string;
+    notes?: string;
+  },
+  token?: string
+) {
+  return updateRequest(id, { fuelLog: payload }, token);
+}
+
+export async function logRequestGps(
+  id: string,
+  payload: {
+    lat: number;
+    lng: number;
+    accuracy?: number;
+    speed?: number;
+    recordedAt?: string;
+  },
+  token?: string
+) {
+  return updateRequest(id, { gpsPoint: payload }, token);
 }
 
 export async function deleteRequest(id: string, token?: string) {
@@ -252,6 +292,32 @@ export async function deleteClient(id: number | string, token?: string) {
 export async function subscribePush(payload: { endpoint: string; keys: { p256dh: string; auth: string }; userAgent?: string }, token?: string) {
   return request<ApiResponse<Record<string, never>>>(
     '/api/notifications/subscribe',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    },
+    token
+  );
+}
+
+export async function getMonitoring(token?: string) {
+  return request<ApiResponse<{ snapshot: MonitoringSnapshot }>>('/api/monitoring', undefined, token);
+}
+
+export async function getPreferences(token?: string) {
+  return request<ApiResponse<{ preferences: { themeMode: 'dark' | 'light'; patientFontLarge: boolean } }>>(
+    '/api/preferences',
+    undefined,
+    token
+  );
+}
+
+export async function savePreferences(
+  payload: { themeMode: 'dark' | 'light'; patientFontLarge: boolean },
+  token?: string
+) {
+  return request<ApiResponse<Record<string, never>>>(
+    '/api/preferences',
     {
       method: 'POST',
       body: JSON.stringify(payload)

@@ -104,12 +104,12 @@ export function GPSTracking({ request, onLocationUpdate }: GPSTrackingProps) {
   return (
     <div className="gps-tracking">
       <div className="section-head compact">
-        <p className="eyebrow">GPS beta</p>
-        <h3>Rastreamento experimental</h3>
+        <p className="eyebrow">GPS operacional</p>
+        <h3>Rastreamento da viagem</h3>
       </div>
 
       <p className="helper-text">
-        Esta área mostra posição atual do navegador e histórico curto da sessão. Ainda não persiste telemetria nem calcula rota oficial.
+        Esta área mostra posição atual do navegador, histórico curto da sessão e envia pontos de rastreio para o backend sempre que o navegador reporta nova posição.
       </p>
 
       {trackingError ? (

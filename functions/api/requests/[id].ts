@@ -2,6 +2,7 @@ import { json } from '../../_shared/response';
 import { getSession } from '../../_shared/session';
 import { sha256Hex } from '../../_shared/security';
 import { logAudit } from '../../_shared/audit';
+import { logOperationalEvent, syncConflictEvents, type MonitoringRequestRow } from '../../_shared/operations';
 import type { Env } from '../../_shared/types';
 
 type UpdateBody = {
@@ -21,6 +22,19 @@ type UpdateBody = {
   routeDate?: string;
   routeOrder?: number | null;
   message?: string;
+  fuelLog?: {
+    odometerKm?: number;
+    liters?: number;
+    fuelType?: string;
+    notes?: string;
+  };
+  gpsPoint?: {
+    lat?: number;
+    lng?: number;
+    accuracy?: number;
+    speed?: number;
+    recordedAt?: string;
+  };
 };
 
 type RequestDetail = {
@@ -46,6 +60,26 @@ type RequestDetail = {
   routeOrder?: number | null;
   pinStatus: string;
   clientConfirmedAt: string | null;
+  telemetry?: {
+    fuelLogsCount: number;
+    gpsPingsCount: number;
+    lastFuel?: {
+      id: string;
+      odometerKm: number;
+      liters: number;
+      fuelType?: string;
+      notes?: string;
+      at: string;
+    } | null;
+    lastGps?: {
+      id: string;
+      lat: number;
+      lng: number;
+      accuracy?: number;
+      speed?: number;
+      at: string;
+    } | null;
+  };
   messages: Array<{
     id: number;
     author: string;
@@ -63,6 +97,13 @@ type RequestDetail = {
     at: string;
   }>;
 };
+
+function humanizeAuditLabel(value: string) {
+  return value
+    .replace(/\./g, ' · ')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
 
 function resolveRequestId(params: { id: string }) {
   return Number(params.id);
@@ -139,6 +180,37 @@ async function fetchDetail(env: Env, requestId: number) {
     auditLogResult = {};
   }
 
+  let fuelResult: { results?: Array<Record<string, unknown>> } = {};
+  try {
+    fuelResult = await env.DB!.prepare(
+      `SELECT id, odometer_km, liters, fuel_type, notes, created_at
+       FROM vehicle_fuel_logs
+       WHERE trip_request_id = ?
+       ORDER BY created_at DESC`
+    )
+      .bind(requestId)
+      .all();
+  } catch {
+    fuelResult = {};
+  }
+
+  let gpsResult: { results?: Array<Record<string, unknown>> } = {};
+  try {
+    gpsResult = await env.DB!.prepare(
+      `SELECT id, latitude, longitude, accuracy, speed, recorded_at
+       FROM gps_logs
+       WHERE trip_request_id = ?
+       ORDER BY recorded_at DESC`
+    )
+      .bind(requestId)
+      .all();
+  } catch {
+    gpsResult = {};
+  }
+
+  const lastFuel = (fuelResult.results ?? [])[0] as Record<string, unknown> | undefined;
+  const lastGps = (gpsResult.results ?? [])[0] as Record<string, unknown> | undefined;
+
   return {
     id: String(row.id),
     protocol: String(row.protocol),
@@ -162,6 +234,30 @@ async function fetchDetail(env: Env, requestId: number) {
     routeOrder: row.routeOrder !== null && row.routeOrder !== undefined ? Number(row.routeOrder) : undefined,
     pinStatus: String(row.pinStatus ?? 'first_access'),
     clientConfirmedAt: (row.clientConfirmedAt as string | null) ?? null,
+    telemetry: {
+      fuelLogsCount: fuelResult.results?.length ?? 0,
+      gpsPingsCount: gpsResult.results?.length ?? 0,
+      lastFuel: lastFuel
+        ? {
+            id: String(lastFuel.id),
+            odometerKm: Number(lastFuel.odometer_km ?? 0),
+            liters: Number(lastFuel.liters ?? 0),
+            fuelType: lastFuel.fuel_type ? String(lastFuel.fuel_type) : undefined,
+            notes: lastFuel.notes ? String(lastFuel.notes) : undefined,
+            at: String(lastFuel.created_at)
+          }
+        : null,
+      lastGps: lastGps
+        ? {
+            id: String(lastGps.id),
+            lat: Number(lastGps.latitude ?? 0),
+            lng: Number(lastGps.longitude ?? 0),
+            accuracy: lastGps.accuracy !== null && lastGps.accuracy !== undefined ? Number(lastGps.accuracy) : undefined,
+            speed: lastGps.speed !== null && lastGps.speed !== undefined ? Number(lastGps.speed) : undefined,
+            at: String(lastGps.recorded_at)
+          }
+        : null
+    },
     messages: (messagesResult.results ?? []).map((item) => ({
       id: Number((item as Record<string, unknown>).id),
       author: String((item as Record<string, unknown>).author),
@@ -174,7 +270,7 @@ async function fetchDetail(env: Env, requestId: number) {
     audit: [
       ...((auditLogResult.results ?? []) as Array<Record<string, unknown>>).map((item) => ({
         id: Number(item.id),
-        label: String(item.action),
+        label: humanizeAuditLabel(String(item.action)),
         details: item.details ? String(item.details) : undefined,
         actor: item.actor_name ? `${String(item.actor_name)} (${String(item.actor_role)})` : undefined,
         at: String(item.at)
@@ -271,7 +367,9 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
     pinStatus: hasField(body.pinStatus),
     routeDate: hasField(body.routeDate),
     routeOrder: hasField(body.routeOrder),
-    message: hasField(body.message)
+    message: hasField(body.message),
+    fuelLog: hasField(body.fuelLog),
+    gpsPoint: hasField(body.gpsPoint)
   };
 
   const role = session.role;
@@ -285,9 +383,9 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
   }
 
   if (role === 'motorista') {
-    const allowed: Array<keyof typeof fields> = ['status', 'message'];
+    const allowed: Array<keyof typeof fields> = ['status', 'message', 'fuelLog', 'gpsPoint'];
     if (hasDisallowed(allowed)) {
-      return json({ ok: false, error: 'Motorista só pode atualizar status e mensagens.' }, { status: 403 });
+      return json({ ok: false, error: 'Motorista só pode atualizar status, mensagens e telemetria operacional.' }, { status: 403 });
     }
     if (body.status && !['em_rota', 'concluida'].includes(body.status)) {
       return json({ ok: false, error: 'Motorista só pode atualizar status operacional.' }, { status: 403 });
@@ -371,6 +469,110 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
     await env.DB.prepare(`UPDATE trip_requests SET ${updates.join(', ')} WHERE id = ?`)
       .bind(...values)
       .run();
+  }
+
+  const nextDriverId = body.driver !== undefined
+    ? (body.driver ? await resolveDriverId(env, body.driver) : null)
+    : await resolveDriverId(env, current.driver);
+  const nextVehicleId = body.vehicle !== undefined
+    ? (body.vehicle ? await resolveVehicleId(env, body.vehicle) : null)
+    : await resolveVehicleId(env, current.vehicle);
+
+  if (body.fuelLog && body.fuelLog.odometerKm !== undefined && body.fuelLog.liters !== undefined) {
+    if (!nextVehicleId) {
+      return json({ ok: false, error: 'A viagem precisa ter veículo atribuído antes do registro de abastecimento.' }, { status: 400 });
+    }
+
+    await env.DB.prepare(
+      `INSERT INTO vehicle_fuel_logs (
+        trip_request_id,
+        vehicle_id,
+        driver_id,
+        odometer_km,
+        liters,
+        fuel_type,
+        notes,
+        actor_role,
+        actor_name,
+        actor_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+      .bind(
+        requestId,
+        nextVehicleId,
+        nextDriverId,
+        body.fuelLog.odometerKm,
+        body.fuelLog.liters,
+        body.fuelLog.fuelType ?? null,
+        body.fuelLog.notes ?? null,
+        session.role,
+        session.name,
+        session.user_id
+      )
+      .run();
+
+    await logOperationalEvent(env, {
+      tripRequestId: requestId,
+      vehicleId: nextVehicleId,
+      driverId: nextDriverId,
+      eventType: 'fuel.logged',
+      payload: {
+        odometerKm: body.fuelLog.odometerKm,
+        liters: body.fuelLog.liters,
+        fuelType: body.fuelLog.fuelType ?? null
+      },
+      actorRole: session.role,
+      actorName: session.name,
+      actorId: session.user_id
+    });
+  }
+
+  if (body.gpsPoint && body.gpsPoint.lat !== undefined && body.gpsPoint.lng !== undefined) {
+    await env.DB.prepare(
+      `INSERT INTO gps_logs (
+        trip_request_id,
+        driver_id,
+        vehicle_id,
+        latitude,
+        longitude,
+        accuracy,
+        speed,
+        recorded_at,
+        actor_role,
+        actor_name,
+        actor_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+      .bind(
+        requestId,
+        nextDriverId,
+        nextVehicleId,
+        body.gpsPoint.lat,
+        body.gpsPoint.lng,
+        body.gpsPoint.accuracy ?? null,
+        body.gpsPoint.speed ?? null,
+        body.gpsPoint.recordedAt ?? new Date().toISOString(),
+        session.role,
+        session.name,
+        session.user_id
+      )
+      .run();
+
+    await logOperationalEvent(env, {
+      tripRequestId: requestId,
+      vehicleId: nextVehicleId,
+      driverId: nextDriverId,
+      eventType: 'gps.logged',
+      payload: {
+        lat: body.gpsPoint.lat,
+        lng: body.gpsPoint.lng,
+        accuracy: body.gpsPoint.accuracy ?? null,
+        speed: body.gpsPoint.speed ?? null
+      },
+      actorRole: session.role,
+      actorName: session.name,
+      actorId: session.user_id
+    });
   }
 
   if (body.message?.trim()) {
@@ -458,6 +660,39 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
       actorName: session?.name ?? null,
       actorId: session?.user_id ?? null
     });
+
+    try {
+      const requestRowsResult = await env.DB.prepare(
+        `
+          SELECT
+            trip_requests.id,
+            trip_requests.protocol,
+            trip_requests.destination,
+            '' AS destinationFacility,
+            trip_requests.departure_at AS departureAt,
+            trip_requests.arrival_eta AS arrivalEta,
+            trip_requests.route_date AS routeDate,
+            trip_requests.route_order AS routeOrder,
+            trip_requests.status,
+            COALESCE(driver.name, '') AS driver,
+            COALESCE(vehicle.plate, '') AS vehicle,
+            vehicle.status AS vehicleStatus
+          FROM trip_requests
+          LEFT JOIN users AS driver ON driver.id = trip_requests.driver_id
+          LEFT JOIN vehicles AS vehicle ON vehicle.id = trip_requests.vehicle_id
+          WHERE trip_requests.status NOT IN ('cancelada', 'concluida')
+        `
+      ).all<MonitoringRequestRow>();
+
+      await syncConflictEvents(
+        env,
+        requestId,
+        (requestRowsResult.results ?? []) as MonitoringRequestRow[],
+        { role: session.role, name: session.name, id: session.user_id }
+      );
+    } catch {
+      // conflict telemetry is best-effort
+    }
   }
 
   const changedFields: string[] = [];
@@ -505,6 +740,10 @@ export async function onRequestDelete({ request, env, params }: { request: Reque
 
   await env.DB.prepare('DELETE FROM messages WHERE trip_request_id = ?').bind(requestId).run();
   await env.DB.prepare('DELETE FROM status_history WHERE trip_request_id = ?').bind(requestId).run();
+  await env.DB.prepare('DELETE FROM audit_log WHERE trip_request_id = ?').bind(requestId).run().catch(() => undefined);
+  await env.DB.prepare('DELETE FROM operational_events WHERE trip_request_id = ?').bind(requestId).run().catch(() => undefined);
+  await env.DB.prepare('DELETE FROM vehicle_fuel_logs WHERE trip_request_id = ?').bind(requestId).run().catch(() => undefined);
+  await env.DB.prepare('DELETE FROM gps_logs WHERE trip_request_id = ?').bind(requestId).run().catch(() => undefined);
   await env.DB.prepare('DELETE FROM trip_requests WHERE id = ?').bind(requestId).run();
 
   await logAudit(env, {

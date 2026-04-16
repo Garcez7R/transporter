@@ -39,6 +39,26 @@ type RequestRow = {
   phoneVisible: number;
   pinStatus: string;
   clientConfirmedAt: string | null;
+  telemetry?: {
+    fuelLogsCount: number;
+    gpsPingsCount: number;
+    lastFuel?: {
+      id: string;
+      odometerKm: number;
+      liters: number;
+      fuelType?: string;
+      notes?: string;
+      at: string;
+    } | null;
+    lastGps?: {
+      id: string;
+      lat: number;
+      lng: number;
+      accuracy?: number;
+      speed?: number;
+      at: string;
+    } | null;
+  };
   messages: Array<{
     id: number;
     author: string;
@@ -70,12 +90,21 @@ function createProtocol(index: number) {
   return `TRP-${year}-${String(index).padStart(5, '0')}`;
 }
 
+function humanizeAuditLabel(value: string) {
+  return value
+    .replace(/\./g, ' · ')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 async function mapRequestRows(env: Env, rows: Array<Record<string, unknown>>) {
   const requestIds = rows.map((row) => Number(row.id)).filter(Boolean);
 
   const messages: Array<Record<string, unknown>> = [];
   const audit: Array<Record<string, unknown>> = [];
   const auditLog: Array<Record<string, unknown>> = [];
+  const fuelLogs: Array<Record<string, unknown>> = [];
+  const gpsLogs: Array<Record<string, unknown>> = [];
 
   if (env.DB && requestIds.length) {
     const placeholderList = requestIds.map(() => '?').join(', ');
@@ -115,6 +144,34 @@ async function mapRequestRows(env: Env, rows: Array<Record<string, unknown>>) {
     messages.push(...((messageResult.results ?? []) as Array<Record<string, unknown>>));
     audit.push(...((auditResult.results ?? []) as Array<Record<string, unknown>>));
     auditLog.push(...((auditLogResult.results ?? []) as Array<Record<string, unknown>>));
+
+    try {
+      const fuelResult = await env.DB.prepare(
+        `SELECT id, trip_request_id, odometer_km, liters, fuel_type, notes, created_at
+         FROM vehicle_fuel_logs
+         WHERE trip_request_id IN (${placeholderList})
+         ORDER BY created_at DESC`
+      )
+        .bind(...requestIds)
+        .all();
+      fuelLogs.push(...((fuelResult.results ?? []) as Array<Record<string, unknown>>));
+    } catch {
+      // ignore optional telemetry tables before migration
+    }
+
+    try {
+      const gpsResult = await env.DB.prepare(
+        `SELECT id, trip_request_id, latitude, longitude, accuracy, speed, recorded_at
+         FROM gps_logs
+         WHERE trip_request_id IN (${placeholderList})
+         ORDER BY recorded_at DESC`
+      )
+        .bind(...requestIds)
+        .all();
+      gpsLogs.push(...((gpsResult.results ?? []) as Array<Record<string, unknown>>));
+    } catch {
+      // ignore optional telemetry tables before migration
+    }
   }
 
   return rows.map((row) => {
@@ -122,11 +179,15 @@ async function mapRequestRows(env: Env, rows: Array<Record<string, unknown>>) {
     const rowMessages = messages.filter((item) => Number(item.trip_request_id) === id);
     const rowAudit = audit.filter((item) => Number(item.trip_request_id) === id);
     const rowAuditLog = auditLog.filter((item) => Number(item.trip_request_id) === id);
+    const rowFuelLogs = fuelLogs.filter((item) => Number(item.trip_request_id) === id);
+    const rowGpsLogs = gpsLogs.filter((item) => Number(item.trip_request_id) === id);
+    const lastFuel = rowFuelLogs[0];
+    const lastGps = rowGpsLogs[0];
 
     const mappedAudit = [
       ...rowAuditLog.map((item) => ({
         id: Number(item.id),
-        label: String(item.action),
+        label: humanizeAuditLabel(String(item.action)),
         details: item.details ? String(item.details) : undefined,
         actor: item.actor_name ? `${String(item.actor_name)} (${String(item.actor_role)})` : undefined,
         at: String(item.at)
@@ -163,6 +224,30 @@ async function mapRequestRows(env: Env, rows: Array<Record<string, unknown>>) {
       phoneVisible: Number(row.phoneVisible ?? 0),
       pinStatus: String(row.pinStatus ?? 'first_access'),
       clientConfirmedAt: (row.clientConfirmedAt as string | null) ?? null,
+      telemetry: {
+        fuelLogsCount: rowFuelLogs.length,
+        gpsPingsCount: rowGpsLogs.length,
+        lastFuel: lastFuel
+          ? {
+              id: String(lastFuel.id),
+              odometerKm: Number(lastFuel.odometer_km ?? 0),
+              liters: Number(lastFuel.liters ?? 0),
+              fuelType: lastFuel.fuel_type ? String(lastFuel.fuel_type) : undefined,
+              notes: lastFuel.notes ? String(lastFuel.notes) : undefined,
+              at: String(lastFuel.created_at)
+            }
+          : null,
+        lastGps: lastGps
+          ? {
+              id: String(lastGps.id),
+              lat: Number(lastGps.latitude ?? 0),
+              lng: Number(lastGps.longitude ?? 0),
+              accuracy: lastGps.accuracy !== null && lastGps.accuracy !== undefined ? Number(lastGps.accuracy) : undefined,
+              speed: lastGps.speed !== null && lastGps.speed !== undefined ? Number(lastGps.speed) : undefined,
+              at: String(lastGps.recorded_at)
+            }
+          : null
+      },
       messages: rowMessages.map((message) => ({
         id: Number(message.id),
         author: String(message.author),
