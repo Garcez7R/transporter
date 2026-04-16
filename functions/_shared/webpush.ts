@@ -27,11 +27,18 @@ function uint8ArrayToBase64Url(value: Uint8Array) {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
+function toArrayBuffer(value: ArrayBufferLike | Uint8Array) {
+  if (value instanceof Uint8Array) {
+    return value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength) as ArrayBuffer;
+  }
+  return value.slice(0) as ArrayBuffer;
+}
+
 async function importClientPublicKey(p256dh: string) {
   const keyData = base64UrlToUint8Array(p256dh);
   return crypto.subtle.importKey(
     'raw',
-    keyData,
+    toArrayBuffer(keyData),
     { name: 'ECDH', namedCurve: 'P-256' },
     true,
     []
@@ -51,34 +58,25 @@ async function exportRawPublicKey(key: CryptoKey) {
   return new Uint8Array(raw);
 }
 
-async function hkdfExtract(salt: ArrayBuffer, ikm: ArrayBuffer) {
-  const key = await crypto.subtle.importKey('raw', ikm, { name: 'HKDF' }, false, ['deriveBits']);
-  return crypto.subtle.deriveBits(
-    { name: 'HKDF', hash: 'SHA-256', salt, info: new Uint8Array() },
-    key,
-    256
-  );
-}
-
-async function hkdfExpand(prk: ArrayBuffer, salt: ArrayBuffer, info: Uint8Array, length: number) {
-  const key = await crypto.subtle.importKey('raw', prk, { name: 'HKDF' }, false, ['deriveBits']);
+async function hkdfExpand(prk: ArrayBufferLike | Uint8Array, salt: ArrayBufferLike | Uint8Array, info: Uint8Array, length: number) {
+  const key = await crypto.subtle.importKey('raw', toArrayBuffer(prk), { name: 'HKDF' }, false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits(
-    { name: 'HKDF', hash: 'SHA-256', salt, info },
+    { name: 'HKDF', hash: 'SHA-256', salt: toArrayBuffer(salt), info: toArrayBuffer(info) },
     key,
     length * 8
   );
   return new Uint8Array(bits);
 }
 
-async function deriveAesKeys(sharedSecret: ArrayBuffer, clientPublicKey: Uint8Array, serverPublicKey: Uint8Array, auth: Uint8Array, salt: Uint8Array) {
+async function deriveAesKeys(sharedSecret: ArrayBufferLike, clientPublicKey: Uint8Array, serverPublicKey: Uint8Array, auth: Uint8Array, salt: Uint8Array) {
   const info = new Uint8Array([
     ...new TextEncoder().encode('WebPush: info\0'),
     ...clientPublicKey,
     ...serverPublicKey
   ]);
   const prk = await hkdfExpand(sharedSecret, auth, info, 32);
-  const contentEncryptionKey = await hkdfExpand(prk.buffer, salt.buffer, new TextEncoder().encode('Content-Encoding: aes128gcm\0'), 16);
-  const nonce = await hkdfExpand(prk.buffer, salt.buffer, new TextEncoder().encode('Content-Encoding: nonce\0'), 12);
+  const contentEncryptionKey = await hkdfExpand(prk, salt, new TextEncoder().encode('Content-Encoding: aes128gcm\0'), 16);
+  const nonce = await hkdfExpand(prk, salt, new TextEncoder().encode('Content-Encoding: nonce\0'), 12);
   return { contentEncryptionKey, nonce };
 }
 
@@ -86,7 +84,10 @@ async function encryptPayload(payload: string, clientPublicKey: Uint8Array, auth
   const serverKeys = await generateServerKeys();
   const serverPublicKey = await exportRawPublicKey(serverKeys.publicKey);
   const sharedSecret = await crypto.subtle.deriveBits(
-    { name: 'ECDH', public: await crypto.subtle.importKey('raw', clientPublicKey, { name: 'ECDH', namedCurve: 'P-256' }, true, []) },
+    {
+      name: 'ECDH',
+      public: await crypto.subtle.importKey('raw', toArrayBuffer(clientPublicKey), { name: 'ECDH', namedCurve: 'P-256' }, true, [])
+    },
     serverKeys.privateKey,
     256
   );
@@ -99,7 +100,13 @@ async function encryptPayload(payload: string, clientPublicKey: Uint8Array, auth
   plaintext.set(padding, 0);
   plaintext.set(body, padding.length);
 
-  const cryptoKey = await crypto.subtle.importKey('raw', contentEncryptionKey, { name: 'AES-GCM', length: 128 }, false, ['encrypt']);
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    toArrayBuffer(contentEncryptionKey),
+    { name: 'AES-GCM', length: 128 },
+    false,
+    ['encrypt']
+  );
   const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, cryptoKey, plaintext);
 
   return {
