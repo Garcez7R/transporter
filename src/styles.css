@@ -189,6 +189,11 @@ a {
   min-height: 100vh;
 }
 
+.dashboard-shell {
+  height: 100vh;
+  overflow: hidden;
+}
+
 .auth-shell {
   grid-template-columns: 1fr;
 }
@@ -884,6 +889,11 @@ h1 {
 .content-panel {
   display: grid;
   gap: 24px;
+  min-height: 0;
+  height: 100vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .patient-view {
@@ -897,6 +907,7 @@ h1 {
 }
 
 .internal-header {
+  padding: 14px 18px;
   gap: 16px;
 }
 
@@ -912,20 +923,32 @@ h1 {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  min-height: 0;
 }
 
 .internal-header-name {
   display: grid;
-  gap: 4px;
+  gap: 2px;
 }
 
 .internal-header-name strong {
-  font-size: 1.1rem;
+  font-size: 0.98rem;
+  line-height: 1.1;
 }
 
 .internal-header-name span {
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.78rem;
+}
+
+.internal-header .topbar-actions {
+  gap: 8px;
+}
+
+.internal-header .cta {
+  min-height: 36px;
+  padding: 8px 14px;
+  font-size: 0.78rem;
 }
 
 .patient-topbar {
@@ -939,14 +962,18 @@ h1 {
 
 .saas-sidebar {
   min-width: 0;
+  height: 100vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .saas-sidebar-panel {
-  position: sticky;
-  top: 18px;
+  position: relative;
   display: grid;
   gap: 18px;
   padding: 18px;
+  margin: 18px 0;
   border: 1px solid rgba(49, 65, 70, 0.12);
   border-radius: 26px;
   background: var(--panel-surface);
@@ -2449,9 +2476,16 @@ select:focus {
     border-bottom: 1px solid var(--line);
   }
 
+  .dashboard-shell,
+  .content-panel,
+  .saas-sidebar {
+    height: auto;
+    overflow: visible;
+  }
+
   .saas-sidebar-panel {
     position: relative;
-    top: 0;
+    margin: 0;
   }
 
   .manager-request-list {
