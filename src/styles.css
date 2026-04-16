@@ -1312,8 +1312,8 @@ h1 {
   font-size: 0.62rem;
 }
 
-.saas-calendar-day.outside {
-  opacity: 0.42;
+.saas-calendar-empty {
+  min-height: 46px;
 }
 
 .saas-calendar-day.today {

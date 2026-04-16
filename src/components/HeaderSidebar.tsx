@@ -56,7 +56,6 @@ type HeaderSidebarProps = {
 type CalendarDay = {
   iso: string;
   day: number;
-  inMonth: boolean;
   isToday: boolean;
   agendaCount: number;
   criticalCount: number;
@@ -90,9 +89,12 @@ function addDays(date: Date, days: number) {
 function buildCalendarDays(monthCursor: Date, requests: TripRequest[]) {
   const monthStart = new Date(monthCursor.getFullYear(), monthCursor.getMonth(), 1);
   const monthEnd = new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 0);
-  const gridStart = startOfWeekMonday(monthStart);
-  const gridEnd = addDays(startOfWeekMonday(monthEnd), 41);
+  const monthLength = monthEnd.getDate();
   const todayIso = toIsoDate(new Date());
+  const leadingEmptyDays = (() => {
+    const startWeekday = monthStart.getDay();
+    return startWeekday === 0 ? 6 : startWeekday - 1;
+  })();
 
   const agendaMap = new Map<string, { agendaCount: number; criticalCount: number; routeCount: number }>();
   requests.forEach((request) => {
@@ -105,21 +107,24 @@ function buildCalendarDays(monthCursor: Date, requests: TripRequest[]) {
     agendaMap.set(date, current);
   });
 
-  const days: CalendarDay[] = [];
-  const cursor = new Date(gridStart);
-  while (cursor <= gridEnd) {
+  const days: Array<CalendarDay | null> = Array.from({ length: leadingEmptyDays }, () => null);
+  for (let dayNumber = 1; dayNumber <= monthLength; dayNumber += 1) {
+    const cursor = new Date(monthCursor.getFullYear(), monthCursor.getMonth(), dayNumber);
     const iso = toIsoDate(cursor);
     const signal = agendaMap.get(iso) ?? { agendaCount: 0, criticalCount: 0, routeCount: 0 };
     days.push({
       iso,
-      day: cursor.getDate(),
-      inMonth: cursor.getMonth() === monthCursor.getMonth(),
+      day: dayNumber,
       isToday: iso === todayIso,
       agendaCount: signal.agendaCount,
       criticalCount: signal.criticalCount,
       routeCount: signal.routeCount
     });
-    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  const trailingEmptyDays = (7 - (days.length % 7)) % 7;
+  for (let index = 0; index < trailingEmptyDays; index += 1) {
+    days.push(null);
   }
 
   return days;
@@ -295,25 +300,28 @@ export function HeaderSidebar({
               ))}
             </div>
             <div className="saas-calendar-grid">
-              {calendarDays.map((day) => (
-                <button
-                  key={day.iso}
-                  type="button"
-                  className={[
-                    'saas-calendar-day',
-                    day.inMonth ? '' : 'outside',
-                    day.isToday ? 'today' : '',
-                    selectedDate === day.iso ? 'selected' : '',
-                    day.criticalCount > 0 ? 'critical' : '',
-                    day.routeCount > 0 ? 'in-route' : ''
-                  ].filter(Boolean).join(' ')}
-                  onClick={() => onDateSelect(day.iso)}
-                >
-                  <span>{day.day}</span>
-                  {day.agendaCount > 0 ? (
-                    <small>{day.agendaCount}</small>
-                  ) : null}
-                </button>
+              {calendarDays.map((day, index) => (
+                day ? (
+                  <button
+                    key={day.iso}
+                    type="button"
+                    className={[
+                      'saas-calendar-day',
+                      day.isToday ? 'today' : '',
+                      selectedDate === day.iso ? 'selected' : '',
+                      day.criticalCount > 0 ? 'critical' : '',
+                      day.routeCount > 0 ? 'in-route' : ''
+                    ].filter(Boolean).join(' ')}
+                    onClick={() => onDateSelect(day.iso)}
+                  >
+                    <span>{day.day}</span>
+                    {day.agendaCount > 0 ? (
+                      <small>{day.agendaCount}</small>
+                    ) : null}
+                  </button>
+                ) : (
+                  <span key={`empty-${index}`} className="saas-calendar-empty" aria-hidden="true"></span>
+                )
               ))}
             </div>
           </div>

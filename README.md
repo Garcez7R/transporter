@@ -1,251 +1,134 @@
-# 🚑 Transporter - Sistema de Transporte de Pacientes
+# Transporter
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/your-repo/transporter/actions)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue)](https://www.typescriptlang.org/)
-[![React](https://img.shields.io/badge/React-19+-61dafb)](https://reactjs.org/)
-[![Cloudflare](https://img.shields.io/badge/Cloudflare-Pages-orange)](https://pages.cloudflare.com/)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+Plataforma web para gestão de transporte de pacientes, com foco em operação diária, distribuição de rotas, rastreabilidade e controle de acesso por perfil.
 
-> **Plataforma web para gestão de transporte de pacientes** — foco em operação, rastreabilidade e controle de acesso.
+## Estado atual
 
-## 📋 Visão Geral
+O projeto já funciona como um app operacional real, com base serverless em Cloudflare Pages Functions + D1 e frontend em React/Vite.
 
-O **Transporter** é uma solução para gestão de transporte de pacientes, desenvolvida com arquitetura serverless e módulos bem separados. O objetivo é oferecer uma operação clara para equipes internas, com controle de acesso por perfil e fluxo completo de solicitações.
+Hoje o Transporter já entrega:
+- login por sessão e troca obrigatória de PIN
+- perfis separados para paciente, operador, gerente, motorista e administrador
+- criação, edição e exclusão de solicitações
+- distribuição de rota com motorista, veículo, ordem e data
+- sidebar operacional com calendário, filtros rápidos e conflitos
+- auditoria central de eventos relevantes
+- monitoramento alimentado por backend
+- registro operacional de abastecimento e pings de GPS por viagem
+- preferências de UI por usuário no backend
+- exportação operacional em `JSON` e `CSV`
 
-### ✨ Principais Características
-
-- 🔐 **Controle de Acesso**: 5 perfis distintos (Paciente, Operador, Gerente, Motorista, Administrador)
-- 📊 **Painel Operacional**: KPIs básicos, filtros e listagens
-- 🔍 **Filtros Avançados**: busca por múltiplos critérios
-- 🧾 **Auditoria**: trilha de eventos e alterações
-- 📱 **PWA**: base para experiência mobile
-
-## 🏗️ Arquitetura Técnica
+## Arquitetura
 
 ### Frontend
-- **React 19** com TypeScript
-- **Vite** para build e desenvolvimento
-- **PWA** com Service Worker avançado
-- **CSS customizado** (tokens + componentes)
-- **Recharts** para visualizações de dados
+- React 19
+- TypeScript
+- Vite
+- PWA com service worker
+- CSS customizado
 
 ### Backend
-- **Cloudflare Pages Functions** (Serverless)
-- **Cloudflare D1** (SQLite distribuído)
-- **REST API** com sessões e controle de acesso
+- Cloudflare Pages Functions
+- Cloudflare D1
+- API REST com sessão por token
 
-### Recursos Disponíveis no código
-- **Error Boundaries** para tratamento robusto de erros
-- **Hooks especializados** para requests, sessão, usuários, clientes
-- **Base de offline** (estado e sinalização)
-- **Monitoramento UI** com painéis e alertas locais
+### Camadas importantes
+- `src/`: UI, hooks e integração com API
+- `functions/api/`: endpoints do backend
+- `functions/_shared/`: sessão, auditoria, segurança, operações
+- `migrations/`: evolução incremental do banco
 
-## 🚀 Instalação e Configuração
+## Fluxos principais
 
-### Pré-requisitos
-- Node.js 18+
-- npm ou yarn
-- Conta Cloudflare (para deploy)
+### Operador
+- cadastra paciente e solicitação
+- acompanha solicitações recentes
+- edita dados operacionais
 
-### Instalação Local
+### Gerente
+- filtra agenda por data e localidade
+- monta rota por motorista e veículo
+- salva ordem operacional da fila
+- enxerga conflitos e sugestões de agrupamento
+
+### Motorista
+- recebe viagens já distribuídas
+- inicia e conclui rota
+- registra abastecimento por viagem
+- envia rastreio GPS da sessão
+
+### Administrador
+- visualiza operação de forma global
+- acessa auditoria consolidada
+- gerencia usuários e governança
+
+## Banco e migrations
+
+O banco evolui por migrations incrementais. As mais relevantes hoje:
+- `0001_init.sql`: estrutura base
+- `0004_audit_log.sql`: trilha de auditoria
+- `0008_route_order.sql`: ordem e data de rota
+- `0009_push_subscriptions.sql`: base para push web
+- `0010_operational_sync.sql`: telemetria operacional, preferências e eventos
+
+Para aplicar no D1 remoto:
 
 ```bash
-# Clone o repositório
-git clone https://github.com/your-repo/transporter.git
-cd transporter
+npx wrangler d1 migrations apply transporter --remote
+```
 
-# Instale as dependências
+## Desenvolvimento local
+
+```bash
 npm install
-
-# Inicie o servidor de desenvolvimento
 npm run dev
 ```
 
-### Configuração do Banco de Dados
+Build de produção:
 
 ```bash
-# Login no Cloudflare
-npm run cf:login
-
-# Criar banco de dados D1
-npm run cf:d1:create
-
-# Aplicar schema e dados iniciais
-npm run cf:d1:apply
+npm run build
 ```
 
-### Deploy para Produção
+## Deploy
+
+O projeto está preparado para Cloudflare Pages.
+
+Push normal:
 
 ```bash
-# Deploy manual
+git push
+```
+
+Se precisar deploy manual:
+
+```bash
 npm run cf:deploy
-
-# Ou configure o deploy automático via GitHub Actions
 ```
 
-## 👥 Perfis de Usuário
+## Variáveis importantes
 
-### 👤 Paciente
-- Portal dedicado para acompanhamento de viagens
-- Histórico completo de transportes
-- Agendamento de consultas
-- Autenticação por CPF + PIN
+Para push web e sessão completa, confira no ambiente:
+- `JWT_SECRET`
+- `VITE_VAPID_PUBLIC_KEY`
+- `VAPID_PUBLIC_KEY`
+- `VAPID_PRIVATE_KEY`
+- `VAPID_SUBJECT`
 
-### 🏥 Operador
-- Cadastro e triagem de solicitações
-- **Interface simplificada**: foco no cadastro
-- Filtros avançados e busca inteligente
-- Monitoramento básico de status operacional
-- Gestão de pacientes e destinos
-- **Abas disponíveis**: Nova solicitação, Solicitações recentes, Pacientes, Monitoramento
-
-### 👔 Gerente
-- Controle operacional completo
-- Monitoramento avançado de frota
-- Analytics e relatórios gerenciais
-- Configurações do sistema
-
-### 🚗 Motorista
-- Agenda mobile otimizada
-- Rastreamento GPS em tempo real
-- Status de viagem atualizável
-- Interface simplificada para campo
-
-### 👑 Administrador
-- Controle total do sistema
-- Logs de auditoria completos
-- Configurações críticas
-- Gerenciamento de usuários
-
-## 📊 Funcionalidades Principais
-
-### 🎯 Dashboard Analytics
-- **KPIs Operacionais**: visão rápida de status
-- **Gráficos**: barras e distribuição por status
-- **Níveis de Acesso**: Operador | Gerente | Admin
-
-### 🔍 Sistema de Filtros
-- **Filtros por Data**: Hoje, ontem, semana, mês, período customizado
-- **Status**: Todos os status de solicitação
-- **Localização**: Cidade, bairro, CEP
-- **Recursos**: Motorista e veículo específicos
-- **Busca Inteligente**: Protocolo, paciente, destino
-
-### 🔒 Segurança e Auditoria
-- **Session Management**: Controle de sessões ativas
-- **Audit Logs**: Rastreamento de alterações por solicitação
-
----
-
-## 🧭 Roadmap (Planned)
-
-- GPS tracking com telemetria real
-- Push notifications do navegador
-- Operações em lote (batch update)
-- Rate limiting por endpoint
-- Exportação CSV/relatórios avançados
-
----
-
-## 📌 Documentação técnica
+## Documentação complementar
 
 - [docs/ARCHITECTURE_MAP.md](./docs/ARCHITECTURE_MAP.md)
 - [docs/ENDPOINTS_AUDIT.md](./docs/ENDPOINTS_AUDIT.md)
 
-## 🛠️ Scripts Disponíveis
+## Roadmap natural
 
-```bash
-# Desenvolvimento
-npm run dev          # Servidor de desenvolvimento
-npm run build        # Build de produção
-npm run preview      # Preview do build
+Os próximos passos mais fortes agora são:
+- bloqueio duro de conflitos críticos no salvamento da rota
+- manutenção persistida de veículos
+- timeline operacional mais rica por viagem e por motorista
+- monitoramento com séries históricas reais
+- push operacional por perfil com regras mais refinadas
 
-# Cloudflare
-npm run cf:login     # Login no Cloudflare
-npm run cf:d1:create # Criar banco D1
-npm run cf:d1:apply  # Aplicar migrations
-npm run cf:deploy    # Deploy para produção
+## Resumo
 
-# Utilitários
-npm run type-check   # Verificar tipos TypeScript
-npm run lint         # Executar ESLint
-```
-
-## 🔧 Configuração do GitHub Actions
-
-O projeto inclui workflow automático para deploy no Cloudflare Pages.
-
-### Secrets Necessários
-- `CLOUDFLARE_ACCOUNT_ID`
-- `CLOUDFLARE_API_TOKEN`
-
-### Triggers
-- **Push na main**: Deploy automático
-- **Manual**: Via `workflow_dispatch`
-
-## 📁 Estrutura do Projeto
-
-```
-transporter/
-├── src/
-│   ├── components/     # Componentes React
-│   ├── hooks/         # Hooks customizados
-│   ├── lib/           # Utilitários e APIs
-│   ├── types.ts       # Definições TypeScript
-│   └── data.ts        # Dados de demonstração
-├── functions/         # Cloudflare Functions
-├── d1/               # Schema e seeds do banco
-├── public/           # Assets estáticos
-└── .github/          # Workflows GitHub Actions
-```
-
-## 🔐 Primeiro Acesso
-
-- **PIN Inicial**: `0000` (todos os perfis)
-- **Troca Obrigatória**: Primeiro login exige nova senha
-- **Perfis Demo**: Disponíveis na tela de login
-
-## 📈 Roadmap
-
-### ✅ Implementado
-- [x] Filtros avançados e busca inteligente
-- [x] Dashboard com gráficos e analytics
-- [x] Sistema de notificações completo
-- [x] GPS tracking em tempo real
-- [x] Capacidades offline (PWA)
-- [x] Operações em lote
-- [x] Centro de monitoramento
-- [x] Sistema de auditoria
-- [x] Controle de acesso granular
-
-### 🚧 Próximas Features
-- [ ] Integração com APIs externas
-- [ ] Mobile app nativa
-- [ ] Machine Learning para otimização de rotas
-- [ ] Integração com sistemas hospitalares
-
-## 🤝 Contribuição
-
-1. Fork o projeto
-2. Crie uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
-3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
-4. Push para a branch (`git push origin feature/AmazingFeature`)
-5. Abra um Pull Request
-
-## 📝 Licença
-
-Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
-
-## 📞 Suporte
-
-Para suporte técnico ou dúvidas:
-- 📧 Email: support@transporter.com
-- 📖 Documentação: [docs.transporter.com](https://docs.transporter.com)
-- 🐛 Issues: [GitHub Issues](https://github.com/your-repo/transporter/issues)
-
----
-
-<div align="center">
-  <p><strong>Transporter</strong> - Transformando o transporte de pacientes com tecnologia de ponta 🚑✨</p>
-  <p>Feito com ❤️ para cuidar melhor dos pacientes</p>
-</div>
+O Transporter já saiu da fase de mock operacional e entrou numa base de produto real. O foco daqui para frente é endurecer regras, enriquecer telemetria e consolidar governança sem perder a clareza do fluxo diário.
