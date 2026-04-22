@@ -68,15 +68,15 @@ export function MonitoringDashboard({ userRole, requests, users, clients, snapsh
       </div>
 
       <div className="settings-tabs">
-        <button className={`tab-button ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}>
+        <button className={`tab-button ${activeTab === 'overview' ? 'active' : ''}`} type="button" onClick={() => setActiveTab('overview')}>
           Visão geral
         </button>
-        <button className={`tab-button ${activeTab === 'ops' ? 'active' : ''}`} onClick={() => setActiveTab('ops')}>
+        <button className={`tab-button ${activeTab === 'ops' ? 'active' : ''}`} type="button" onClick={() => setActiveTab('ops')}>
           Operação
         </button>
         {userRole === 'administrador' ? (
-          <button className={`tab-button ${activeTab === 'audit' ? 'active' : ''}`} onClick={() => setActiveTab('audit')}>
-            Auditoria beta
+          <button className={`tab-button ${activeTab === 'audit' ? 'active' : ''}`} type="button" onClick={() => setActiveTab('audit')}>
+            Auditoria
           </button>
         ) : null}
       </div>
@@ -163,7 +163,7 @@ export function MonitoringDashboard({ userRole, requests, users, clients, snapsh
                   <span>{index + 1}</span>
                   <div>
                     <strong>{role}</strong>
-                    <small>{count} usuário(s) no cadastro</small>
+                    <small>{count} usuário(s) ativos no cadastro</small>
                   </div>
                 </li>
               ))}

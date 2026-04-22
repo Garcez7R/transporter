@@ -108,6 +108,7 @@ export function AdvancedFilters({ onFiltersChange, availableDrivers, availableVe
     <div className="advanced-filters">
       <button
         className={`cta ghost filter-toggle ${activeFiltersCount > 0 ? 'active' : ''}`}
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
         aria-label={`Filtros avançados ${activeFiltersCount > 0 ? `(${activeFiltersCount} ativo${activeFiltersCount > 1 ? 's' : ''})` : ''}`}
@@ -120,7 +121,7 @@ export function AdvancedFilters({ onFiltersChange, availableDrivers, availableVe
         <div className="filter-panel glass-card">
           <div className="filter-header">
             <h3>Filtros avançados</h3>
-            <button className="close-button" onClick={() => setIsOpen(false)} aria-label="Fechar filtros">
+            <button className="close-button" type="button" onClick={() => setIsOpen(false)} aria-label="Fechar filtros">
               ✕
             </button>
           </div>
@@ -235,10 +236,10 @@ export function AdvancedFilters({ onFiltersChange, availableDrivers, availableVe
           </div>
 
           <div className="filter-actions">
-            <button className="cta ghost" onClick={handleClearFilters}>
+            <button className="cta ghost" type="button" onClick={handleClearFilters}>
               Limpar filtros
             </button>
-            <button className="cta" onClick={handleApplyFilters}>
+            <button className="cta" type="button" onClick={handleApplyFilters}>
               Aplicar filtros
             </button>
           </div>

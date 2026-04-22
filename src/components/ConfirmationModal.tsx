@@ -15,10 +15,10 @@ export function ConfirmationModal() {
           <p>{message}</p>
         </div>
         <div className="confirmation-modal-actions">
-          <button className="cta ghost" onClick={onCancel}>
+          <button className="cta ghost" type="button" onClick={onCancel}>
             Cancelar
           </button>
-          <button className="cta danger" onClick={onConfirm}>
+          <button className="cta danger" type="button" onClick={onConfirm}>
             Confirmar
           </button>
         </div>

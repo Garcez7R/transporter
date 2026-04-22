@@ -37,6 +37,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           <p>Ocorreu um erro inesperado. Tente recarregar a página.</p>
           <button
             className="cta"
+            type="button"
             onClick={() => window.location.reload()}
           >
             Recarregar Página

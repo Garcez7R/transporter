@@ -54,6 +54,15 @@ const statusLabels: Record<RequestStatus, string> = {
   cancelada: 'Cancelada'
 };
 
+async function persistUserPreferences(
+  token: string | undefined,
+  themeMode: 'dark' | 'light',
+  patientFontLarge: boolean
+) {
+  if (!token) return;
+  await savePreferences({ themeMode, patientFontLarge }, token).catch(() => undefined);
+}
+
 function toLocalIsoDate(value: Date) {
   const year = value.getFullYear();
   const month = String(value.getMonth() + 1).padStart(2, '0');
@@ -1566,10 +1575,18 @@ function App() {
           <header className="topbar topbar-v2 patient-topbar">
             <div></div>
             <div className="topbar-actions">
-              <button className="cta ghost" type="button" onClick={() => setThemeMode((current) => (current === 'dark' ? 'light' : 'dark'))}>
+              <button className="cta ghost" type="button" onClick={() => {
+                const nextTheme = themeMode === 'dark' ? 'light' : 'dark';
+                setThemeMode(nextTheme);
+                persistUserPreferences(session.token, nextTheme, patientFontLarge);
+              }}>
                 {themeMode === 'dark' ? 'Modo claro' : 'Modo escuro'}
               </button>
-              <button className="cta ghost font-toggle" type="button" onClick={() => setPatientFontLarge((prev) => !prev)}>
+              <button className="cta ghost font-toggle" type="button" onClick={() => {
+                const nextFont = !patientFontLarge;
+                setPatientFontLarge(nextFont);
+                persistUserPreferences(session.token, themeMode, nextFont);
+              }}>
                 {patientFontLarge ? 'Fonte normal' : 'Fonte maior'}
               </button>
               {deferredPrompt && !isAppInstalled ? (
@@ -1590,7 +1607,11 @@ function App() {
                 <span>{roleLabels[session.role]}</span>
               </div>
               <div className="topbar-actions">
-                <button className="cta ghost" type="button" onClick={() => setThemeMode((current) => (current === 'dark' ? 'light' : 'dark'))}>
+                <button className="cta ghost" type="button" onClick={() => {
+                  const nextTheme = themeMode === 'dark' ? 'light' : 'dark';
+                  setThemeMode(nextTheme);
+                  persistUserPreferences(session.token, nextTheme, patientFontLarge);
+                }}>
                   {themeMode === 'dark' ? 'Modo claro' : 'Modo escuro'}
                 </button>
                 {deferredPrompt && !isAppInstalled ? (
@@ -2397,7 +2418,11 @@ function App() {
                   <button className="cta" type="button" onClick={handleRouteSave}>
                     Salvar rota
                   </button>
-                  <button className="cta ghost" type="button" onClick={handleRouteClear}>
+                  <button className="cta ghost" type="button" onClick={() => {
+                    confirmationModal.showConfirmation('Deseja limpar a fila atual e remover as atribuições persistidas desta rota?', () => {
+                      handleRouteClear().catch(() => undefined);
+                    });
+                  }}>
                     Limpar fila
                   </button>
                 </div>

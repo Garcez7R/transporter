@@ -31,12 +31,14 @@ export function BulkOperations({
         <div className="bulk-actions">
           <button
             className="cta ghost"
+            type="button"
             onClick={() => setShowBulkMenu(!showBulkMenu)}
           >
             ⚡ Ações em Lote
           </button>
           <button
             className="cta ghost"
+            type="button"
             onClick={() => onExport('csv')}
           >
             📤 Exportar
@@ -51,24 +53,28 @@ export function BulkOperations({
             <div className="bulk-buttons">
               <button
                 className="cta ghost"
+                type="button"
                 onClick={() => onBulkUpdate(selectedRequests, 'agendada')}
               >
                 📅 Agendar
               </button>
               <button
                 className="cta ghost"
+                type="button"
                 onClick={() => onBulkUpdate(selectedRequests, 'em_rota')}
               >
                 🚗 Em Rota
               </button>
               <button
                 className="cta ghost"
+                type="button"
                 onClick={() => onBulkUpdate(selectedRequests, 'concluida')}
               >
                 ✅ Concluir
               </button>
               <button
                 className="cta ghost"
+                type="button"
                 onClick={() => onBulkUpdate(selectedRequests, 'cancelada')}
               >
                 ❌ Cancelar
@@ -81,6 +87,7 @@ export function BulkOperations({
             <div className="bulk-buttons">
               <button
                 className="cta ghost"
+                type="button"
                 onClick={() => onBulkDelete(selectedRequests)}
               >
                 🗑️ Excluir
@@ -91,7 +98,7 @@ export function BulkOperations({
           <div className="bulk-section">
             <h4>Exportação</h4>
             <div className="bulk-buttons">
-              <button className="cta ghost" onClick={() => onExport('json')}>
+              <button className="cta ghost" type="button" onClick={() => onExport('json')}>
                 💾 Exportar JSON
               </button>
             </div>

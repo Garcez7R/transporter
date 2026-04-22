@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react';
 import type { ClientFormState } from '../types';
+import { normalizeDocument } from '../lib/persistence';
 
 type ClientModalProps = {
   activeClientId: number | null;
@@ -27,6 +28,8 @@ export function ClientModal({
   formatDocument
 }: ClientModalProps) {
   if (!clientModalOpen || !activeClientId) return null;
+
+  const canDelete = normalizeDocument(clientForm.document).length === 11;
 
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={() => setClientModalOpen(false)}>
@@ -82,7 +85,7 @@ export function ClientModal({
           <input placeholder="Bairro" value={clientForm.neighborhood} onChange={(event) => setClientForm({ ...clientForm, neighborhood: event.target.value })} />
           <input placeholder="Cidade" value={clientForm.city} onChange={(event) => setClientForm({ ...clientForm, city: event.target.value })} />
           <div className="form-actions">
-            <button className="cta ghost danger" type="button" onClick={() => handleDeleteClient(activeClientId)}>
+            <button className="cta ghost danger" type="button" disabled={!canDelete} onClick={() => handleDeleteClient(activeClientId)}>
               Excluir
             </button>
             <button className="cta" type="submit">

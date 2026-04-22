@@ -37,13 +37,13 @@ export function Settings({
       </div>
 
       <div className="settings-tabs">
-        <button className={`tab-button ${activeTab === 'general' ? 'active' : ''}`} onClick={() => setActiveTab('general')}>
+        <button className={`tab-button ${activeTab === 'general' ? 'active' : ''}`} type="button" onClick={() => setActiveTab('general')}>
           Geral
         </button>
-        <button className={`tab-button ${activeTab === 'data' ? 'active' : ''}`} onClick={() => setActiveTab('data')}>
+        <button className={`tab-button ${activeTab === 'data' ? 'active' : ''}`} type="button" onClick={() => setActiveTab('data')}>
           Dados
         </button>
-        <button className={`tab-button ${activeTab === 'security' ? 'active' : ''}`} onClick={() => setActiveTab('security')}>
+        <button className={`tab-button ${activeTab === 'security' ? 'active' : ''}`} type="button" onClick={() => setActiveTab('security')}>
           Segurança
         </button>
       </div>
@@ -110,7 +110,7 @@ export function Settings({
                 </button>
               </div>
               <div className="setting-info">
-                <p><strong>Nota:</strong> importação em massa ficou temporariamente oculta até fecharmos validação, deduplicação e auditoria de dados.</p>
+                <p><strong>Observação:</strong> exportação operacional está ativa em `JSON` e `CSV`, preservando a leitura atual do app para auditoria e apoio externo.</p>
               </div>
             </div>
           </div>
@@ -129,8 +129,8 @@ export function Settings({
                 <span className="setting-value">{pushStatus}</span>
               </div>
               <div className="setting-item">
-                <span>Auditoria local</span>
-                <span className="setting-value">Eventos de UI e mudanças críticas seguem ativos</span>
+                <span>Auditoria operacional</span>
+                <span className="setting-value">Eventos críticos, telemetria e alterações seguem registrados no backend</span>
               </div>
               {canAccessAdvanced ? (
                 <div className="setting-item">
