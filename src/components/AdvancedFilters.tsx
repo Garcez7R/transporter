@@ -203,35 +203,27 @@ export function AdvancedFilters({ onFiltersChange, availableDrivers, availableVe
             {/* Filtro por Motorista */}
             <div className="filter-section">
               <h4>Motorista</h4>
-              <input
-                type="text"
-                placeholder="Nome do motorista..."
-                value={driverFilter}
-                onChange={(e) => setDriverFilter(e.target.value)}
-                list="drivers-list"
-              />
-              <datalist id="drivers-list">
+              <select value={driverFilter} onChange={(e) => setDriverFilter(e.target.value)}>
+                <option value="">Todos os motoristas</option>
                 {availableDrivers.map(driver => (
-                  <option key={driver} value={driver} />
+                  <option key={driver} value={driver}>
+                    {driver}
+                  </option>
                 ))}
-              </datalist>
+              </select>
             </div>
 
             {/* Filtro por Veículo */}
             <div className="filter-section">
               <h4>Veículo</h4>
-              <input
-                type="text"
-                placeholder="Placa ou modelo..."
-                value={vehicleFilter}
-                onChange={(e) => setVehicleFilter(e.target.value)}
-                list="vehicles-list"
-              />
-              <datalist id="vehicles-list">
+              <select value={vehicleFilter} onChange={(e) => setVehicleFilter(e.target.value)}>
+                <option value="">Todos os veículos</option>
                 {availableVehicles.map(vehicle => (
-                  <option key={vehicle} value={vehicle} />
+                  <option key={vehicle} value={vehicle}>
+                    {vehicle}
+                  </option>
                 ))}
-              </datalist>
+              </select>
             </div>
           </div>
 

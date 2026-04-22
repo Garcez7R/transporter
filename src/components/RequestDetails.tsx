@@ -41,6 +41,8 @@ type RequestDetailsProps = {
   handleConfirmRead: () => Promise<void>;
   handleResetClientPin: () => Promise<void>;
   statusLabels: Record<RequestStatus, string>;
+  availableDrivers: string[];
+  availableVehicles: string[];
   formatTime: (value: string) => string;
   formatAddressDisplay: (address: string, cep?: string | null) => string;
   buildMapQuery: (request: TripRequest) => string;
@@ -74,6 +76,8 @@ export function RequestDetails({
   handleConfirmRead,
   handleResetClientPin,
   statusLabels,
+  availableDrivers,
+  availableVehicles,
   formatTime,
   formatAddressDisplay,
   buildMapQuery
@@ -190,16 +194,28 @@ export function RequestDetails({
             </label>
             {(session.role === 'gerente' || session.role === 'administrador') && (
               <>
-                <input
-                  placeholder="Motorista"
-                  value={tripForm.driver}
-                  onChange={(event) => setTripForm({ ...tripForm, driver: event.target.value })}
-                />
-                <input
-                  placeholder="Veículo"
-                  value={tripForm.vehicle}
-                  onChange={(event) => setTripForm({ ...tripForm, vehicle: event.target.value })}
-                />
+                <label>
+                  <span>Motorista</span>
+                  <select value={tripForm.driver} onChange={(event) => setTripForm({ ...tripForm, driver: event.target.value })}>
+                    <option value="">Selecione o motorista</option>
+                    {availableDrivers.map((driver) => (
+                      <option key={driver} value={driver}>
+                        {driver}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Veículo</span>
+                  <select value={tripForm.vehicle} onChange={(event) => setTripForm({ ...tripForm, vehicle: event.target.value })}>
+                    <option value="">Selecione o veículo</option>
+                    {availableVehicles.map((vehicle) => (
+                      <option key={vehicle} value={vehicle}>
+                        {vehicle}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <label>
                   <span>Telefone visível</span>
                   <select

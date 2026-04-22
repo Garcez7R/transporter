@@ -47,7 +47,6 @@ export function useServiceWorker() {
       navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
         .then(registration => {
           setIsRegistered(true);
-          console.log('Service Worker registered:', registration);
 
           // Check for updates
           registration.addEventListener('updatefound', () => {
@@ -62,7 +61,7 @@ export function useServiceWorker() {
           });
         })
         .catch(error => {
-          console.error('Service Worker registration failed:', error);
+          setUpdateAvailable(false);
         });
     }
   }, []);

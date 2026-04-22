@@ -2352,31 +2352,25 @@ function App() {
             <div className="route-config-grid">
               <label>
                 <span>Motorista responsável</span>
-                <input
-                      list="route-drivers"
-                      value={routeDriver}
-                      onChange={(event) => setRouteDriver(event.target.value)}
-                      placeholder="Selecione o motorista"
-                    />
-                    <datalist id="route-drivers">
-                      {availableDrivers.map((driver) => (
-                        <option key={driver} value={driver} />
-                      ))}
-                    </datalist>
+                <select value={routeDriver} onChange={(event) => setRouteDriver(event.target.value)}>
+                  <option value="">Selecione o motorista</option>
+                  {availableDrivers.map((driver) => (
+                    <option key={driver} value={driver}>
+                      {driver}
+                    </option>
+                  ))}
+                </select>
                   </label>
                   <label>
                     <span>Veículo da rota</span>
-                    <input
-                      list="route-vehicles"
-                      value={routeVehicle}
-                      onChange={(event) => setRouteVehicle(event.target.value)}
-                      placeholder="Selecione o veículo"
-                    />
-                    <datalist id="route-vehicles">
+                    <select value={routeVehicle} onChange={(event) => setRouteVehicle(event.target.value)}>
+                      <option value="">Selecione o veículo</option>
                       {availableVehicles.map((vehicle) => (
-                        <option key={vehicle} value={vehicle} />
+                        <option key={vehicle} value={vehicle}>
+                          {vehicle}
+                        </option>
                       ))}
-                    </datalist>
+                    </select>
                   </label>
                   <label>
                     <span>Data da operação</span>
@@ -2811,6 +2805,8 @@ function App() {
             handleConfirmRead={handleConfirmRead}
             handleResetClientPin={confirmResetClientPin}
             statusLabels={statusLabels}
+            availableDrivers={availableDrivers}
+            availableVehicles={availableVehicles}
             formatTime={(value) => {
               const digits = value.replace(/\D/g, '').slice(0, 4);
               if (digits.length <= 2) return digits;
