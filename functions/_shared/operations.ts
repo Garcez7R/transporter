@@ -224,6 +224,41 @@ export function buildRouteSuggestions(rows: MonitoringRequestRow[]) {
     .slice(0, 8);
 }
 
+export function detectCriticalAssignmentConflicts(
+  rows: MonitoringRequestRow[],
+  currentRequestId: number,
+  candidate: {
+    driver: string;
+    vehicle: string;
+    vehicleStatus?: string | null;
+    departureAt: string;
+    arrivalEta?: string | null;
+    routeDate?: string | null;
+    routeOrder?: number | null;
+    status: string;
+  }
+) {
+  const nextRows = rows.map((row) =>
+    row.id === currentRequestId
+      ? {
+          ...row,
+          driver: candidate.driver,
+          vehicle: candidate.vehicle,
+          vehicleStatus: candidate.vehicleStatus ?? row.vehicleStatus ?? null,
+          departureAt: candidate.departureAt,
+          arrivalEta: candidate.arrivalEta ?? row.arrivalEta ?? null,
+          routeDate: candidate.routeDate ?? row.routeDate ?? null,
+          routeOrder: candidate.routeOrder ?? row.routeOrder ?? null,
+          status: candidate.status
+        }
+      : row
+  );
+
+  return detectOperationalConflicts(nextRows)
+    .filter((conflict) => conflict.relatedRequestIds.includes(String(currentRequestId)))
+    .filter((conflict) => conflict.tone === 'danger' || conflict.category === 'vehicle_maintenance');
+}
+
 export async function logOperationalEvent(
   env: Env,
   entry: {

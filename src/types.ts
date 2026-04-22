@@ -120,6 +120,11 @@ export interface MonitoringSnapshot {
   recentAudit: AuditItem[];
 }
 
+export interface FleetSnapshot {
+  generatedAt: string;
+  vehicles: VehicleRecord[];
+}
+
 export interface TripRequest {
   id: string;
   protocol: string;
@@ -274,6 +279,7 @@ export interface VehicleRecord {
   name: string;
   plate: string;
   fuel: string;
+  status?: string;
   odometer: number;
   autonomyKm: number;
   lastFuel: {
@@ -287,4 +293,6 @@ export interface VehicleRecord {
   };
   maintenance: VehicleMaintenanceItem[];
   trips: VehicleTrip[];
+  fuelLogsCount?: number;
+  activeTripsCount?: number;
 }

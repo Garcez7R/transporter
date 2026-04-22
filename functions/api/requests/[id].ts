@@ -2,7 +2,7 @@ import { json } from '../../_shared/response';
 import { getSession } from '../../_shared/session';
 import { sha256Hex } from '../../_shared/security';
 import { logAudit } from '../../_shared/audit';
-import { logOperationalEvent, syncConflictEvents, type MonitoringRequestRow } from '../../_shared/operations';
+import { detectCriticalAssignmentConflicts, logOperationalEvent, syncConflictEvents, type MonitoringRequestRow } from '../../_shared/operations';
 import type { Env } from '../../_shared/types';
 
 type UpdateBody = {
@@ -437,6 +437,72 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
 
   if (body.pinStatus !== undefined && !['operador', 'gerente', 'administrador'].includes(role)) {
     return json({ ok: false, error: 'Sem permissão para resetar o PIN do paciente.' }, { status: 403 });
+  }
+
+  const candidateDriverName = body.driver !== undefined ? body.driver : current.driver;
+  const candidateVehicleName = body.vehicle !== undefined ? body.vehicle : current.vehicle;
+  const candidateDepartureAt = body.departureAt !== undefined ? body.departureAt : current.departureAt;
+  const candidateArrivalEta = body.arrivalEta !== undefined ? body.arrivalEta : current.arrivalEta;
+  const candidateRouteDate = body.routeDate !== undefined ? body.routeDate : current.routeDate;
+  const candidateRouteOrder = body.routeOrder !== undefined ? body.routeOrder : current.routeOrder ?? null;
+  const candidateStatus = body.status !== undefined ? body.status : current.status;
+
+  if (
+    ['gerente', 'administrador'].includes(role) &&
+    (body.driver !== undefined || body.vehicle !== undefined || body.departureAt !== undefined || body.arrivalEta !== undefined || body.routeDate !== undefined || body.routeOrder !== undefined)
+  ) {
+    const requestRowsResult = await env.DB.prepare(
+      `
+        SELECT
+          trip_requests.id,
+          trip_requests.protocol,
+          trip_requests.destination,
+          '' AS destinationFacility,
+          trip_requests.departure_at AS departureAt,
+          trip_requests.arrival_eta AS arrivalEta,
+          trip_requests.route_date AS routeDate,
+          trip_requests.route_order AS routeOrder,
+          trip_requests.status,
+          COALESCE(driver.name, '') AS driver,
+          COALESCE(vehicle.plate, '') AS vehicle,
+          vehicle.status AS vehicleStatus
+        FROM trip_requests
+        LEFT JOIN users AS driver ON driver.id = trip_requests.driver_id
+        LEFT JOIN vehicles AS vehicle ON vehicle.id = trip_requests.vehicle_id
+        WHERE trip_requests.status NOT IN ('cancelada', 'concluida')
+      `
+    ).all<MonitoringRequestRow>();
+
+    const vehicleStatusRow = candidateVehicleName
+      ? await env.DB.prepare(`SELECT status FROM vehicles WHERE plate = ? OR model = ? LIMIT 1`)
+          .bind(candidateVehicleName, candidateVehicleName)
+          .first<{ status: string }>()
+      : null;
+
+    const hardConflicts = detectCriticalAssignmentConflicts(
+      (requestRowsResult.results ?? []) as MonitoringRequestRow[],
+      requestId,
+      {
+        driver: candidateDriverName ?? '',
+        vehicle: candidateVehicleName ?? '',
+        vehicleStatus: vehicleStatusRow?.status ?? null,
+        departureAt: candidateDepartureAt,
+        arrivalEta: candidateArrivalEta ?? null,
+        routeDate: candidateRouteDate ?? null,
+        routeOrder: candidateRouteOrder ?? null,
+        status: candidateStatus
+      }
+    );
+
+    if (hardConflicts.length) {
+      return json(
+        {
+          ok: false,
+          error: hardConflicts[0]?.detail ?? 'A rota apresenta conflito crítico e não pode ser salva.'
+        },
+        { status: 409 }
+      );
+    }
   }
 
   const updates: string[] = [];

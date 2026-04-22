@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import type { DragEvent, FormEvent } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { demoUsers, fleet, vehicleFleet } from './data';
-import { dispatchNotification, getMonitoring, getPreferences, listClients, logRequestGps, savePreferences, subscribePush } from './lib/api';
+import { dispatchNotification, getFleet, getMonitoring, getPreferences, listClients, logRequestGps, savePreferences, subscribePush } from './lib/api';
 import { formatCep, formatDocument, normalizeCep, normalizeDocument } from './lib/persistence';
-import type { AccessRole, MonitoringSnapshot, OperationalConflict, RequestStatus, RouteSuggestion, TripRequest } from './types';
+import type { AccessRole, FleetSnapshot, MonitoringSnapshot, OperationalConflict, RequestStatus, RouteSuggestion, TripRequest } from './types';
 import { useClients } from './hooks/useClients';
 import { useRequests } from './hooks/useRequests';
 import { useSession } from './hooks/useSession';
@@ -293,6 +293,7 @@ function App() {
   const [showFuelForm, setShowFuelForm] = useState(false);
   const [fuelForm, setFuelForm] = useState({ odometer: '', liters: '' });
   const [monitoringSnapshot, setMonitoringSnapshot] = useState<MonitoringSnapshot | null>(null);
+  const [fleetSnapshot, setFleetSnapshot] = useState<FleetSnapshot | null>(null);
   const [pushStatus, setPushStatus] = useState<'supported' | 'unsupported' | 'granted' | 'denied' | 'default'>(() => {
     if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported';
     return Notification.permission;
@@ -591,6 +592,26 @@ function App() {
       cancelled = true;
     };
   }, [session?.token, requests, users, clients]);
+
+  useEffect(() => {
+    if (!session?.token) {
+      setFleetSnapshot(null);
+      return;
+    }
+
+    let cancelled = false;
+    getFleet(session.token)
+      .then((response) => {
+        if (!cancelled) setFleetSnapshot(response.snapshot);
+      })
+      .catch(() => {
+        if (!cancelled) setFleetSnapshot(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.token, requests]);
 
   useEffect(() => {
     if (!session?.token) return;
@@ -1111,9 +1132,29 @@ function App() {
     }
   }
 
+  const resolvedVehicleFleet = useMemo(() => {
+    if (fleetSnapshot?.vehicles?.length) {
+      return fleetSnapshot.vehicles.map((vehicle) => {
+        const fallback = vehicleFleet.find(
+          (item) =>
+            item.plate.toLowerCase() === vehicle.plate.toLowerCase() ||
+            item.name.toLowerCase() === vehicle.name.toLowerCase()
+        );
+        return {
+          ...fallback,
+          ...vehicle,
+          maintenance: vehicle.maintenance.length ? vehicle.maintenance : fallback?.maintenance ?? [],
+          trips: vehicle.trips.length ? vehicle.trips : fallback?.trips ?? [],
+          oil: vehicle.oil ?? fallback?.oil ?? { lastKm: 0, nextKm: 0 }
+        };
+      });
+    }
+    return vehicleFleet;
+  }, [fleetSnapshot]);
+
   const activeVehicle = useMemo(
-    () => vehicleFleet.find((vehicle) => vehicle.id === activeVehicleId) ?? vehicleFleet[0] ?? null,
-    [activeVehicleId]
+    () => resolvedVehicleFleet.find((vehicle) => vehicle.id === activeVehicleId) ?? resolvedVehicleFleet[0] ?? null,
+    [activeVehicleId, resolvedVehicleFleet]
   );
 
   const routeItems = useMemo(
@@ -1384,6 +1425,15 @@ function App() {
     }
     if (!routeDate) {
       pushToast('error', 'Informe a data da rota para salvar.');
+      return;
+    }
+    const blockingConflict = operationalConflicts.find(
+      (conflict) =>
+        (conflict.tone === 'danger' || conflict.category === 'vehicle_maintenance') &&
+        routeItems.some((item) => item && conflict.relatedRequestIds.includes(item.id))
+    );
+    if (blockingConflict) {
+      pushToast('error', blockingConflict.detail);
       return;
     }
     for (let index = 0; index < routeItems.length; index += 1) {
@@ -2464,7 +2514,7 @@ function App() {
             </div>
             <div className="grid two-col fleet-layout">
               <div className="fleet-list">
-                {vehicleFleet.map((vehicle) => (
+                {resolvedVehicleFleet.map((vehicle) => (
                   <article
                     key={vehicle.id}
                     className={`fleet-card ${activeVehicleId === vehicle.id ? 'active' : ''}`}
@@ -2472,7 +2522,7 @@ function App() {
                   >
                     <div className="fleet-main">
                       <strong>{vehicle.name}</strong>
-                      <small>Placa {vehicle.plate} · {vehicle.fuel}</small>
+                      <small>Placa {vehicle.plate} · {vehicle.fuel} · {vehicle.status || 'available'}</small>
                     </div>
                     <div className="fleet-meta">
                       <span>Km total: {vehicle.odometer.toLocaleString('pt-BR')}</span>
@@ -2503,6 +2553,14 @@ function App() {
                     <div>
                       <span>Autonomia estimada</span>
                       <strong>{activeVehicle.autonomyKm} km</strong>
+                    </div>
+                    <div>
+                      <span>Abastecimentos</span>
+                      <strong>{activeVehicle.fuelLogsCount ?? 0}</strong>
+                    </div>
+                    <div>
+                      <span>Viagens ativas</span>
+                      <strong>{activeVehicle.activeTripsCount ?? 0}</strong>
                     </div>
                   </div>
                   <div className="fleet-section">

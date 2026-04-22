@@ -1,4 +1,4 @@
-import type { MonitoringSnapshot, SessionUser, TripRequest, RequestStatus } from '../types';
+import type { FleetSnapshot, MonitoringSnapshot, SessionUser, TripRequest, RequestStatus } from '../types';
 
 type ApiSession = Omit<SessionUser, 'token'> & { token?: string };
 
@@ -302,6 +302,10 @@ export async function subscribePush(payload: { endpoint: string; keys: { p256dh:
 
 export async function getMonitoring(token?: string) {
   return request<ApiResponse<{ snapshot: MonitoringSnapshot }>>('/api/monitoring', undefined, token);
+}
+
+export async function getFleet(token?: string) {
+  return request<ApiResponse<{ snapshot: FleetSnapshot }>>('/api/fleet', undefined, token);
 }
 
 export async function getPreferences(token?: string) {
