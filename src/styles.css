@@ -907,15 +907,22 @@ h1 {
 }
 
 .internal-header {
-  padding: 14px 18px;
-  gap: 16px;
+  position: sticky;
+  top: 10px;
+  z-index: 8;
+  padding: 12px 16px;
+  gap: 12px;
   overflow: hidden;
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.025)),
+    var(--card-surface);
+  box-shadow:
+    0 14px 30px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .sticky-header {
-  position: sticky;
-  top: 16px;
-  z-index: 6;
   backdrop-filter: blur(26px);
 }
 
@@ -923,37 +930,40 @@ h1 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   min-height: 0;
   flex-wrap: nowrap;
 }
 
 .internal-header-name {
   display: grid;
-  gap: 2px;
+  gap: 1px;
 }
 
 .internal-header-name strong {
-  font-size: 0.98rem;
+  font-size: 0.94rem;
   line-height: 1.1;
 }
 
 .internal-header-name span {
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.74rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 
 .internal-header .topbar-actions {
-  gap: 8px;
+  gap: 6px;
   flex-wrap: nowrap;
   justify-content: flex-end;
   flex-shrink: 0;
 }
 
 .internal-header .cta {
-  min-height: 36px;
-  padding: 8px 14px;
-  font-size: 0.78rem;
+  min-height: 34px;
+  padding: 7px 12px;
+  font-size: 0.75rem;
+  border-radius: 14px;
 }
 
 .patient-topbar {
