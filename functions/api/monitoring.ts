@@ -22,6 +22,7 @@ export async function onRequestGet({ request, env }: { request: Request; env: En
       ok: true,
       snapshot: {
         generatedAt: new Date().toISOString(),
+        source: 'backend',
         summary: {
           activeRequests: 0,
           inRoute: 0,
@@ -110,6 +111,7 @@ export async function onRequestGet({ request, env }: { request: Request; env: En
     ok: true,
     snapshot: {
       generatedAt: new Date().toISOString(),
+      source: 'backend',
       summary: {
         activeRequests: rows.filter((row) => ['em_atendimento', 'agendada', 'em_rota'].includes(row.status)).length,
         inRoute: countsByStatus.em_rota ?? 0,

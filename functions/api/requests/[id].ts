@@ -577,6 +577,51 @@ export async function onRequestPatch({ request, env, params }: { request: Reques
       )
       .run();
 
+    const previousFuelRow = await env.DB.prepare(
+      `SELECT odometer_km, liters
+       FROM vehicle_fuel_logs
+       WHERE vehicle_id = ? AND id != (
+         SELECT MAX(id) FROM vehicle_fuel_logs WHERE vehicle_id = ?
+       )
+       ORDER BY created_at DESC
+       LIMIT 1`
+    )
+      .bind(nextVehicleId, nextVehicleId)
+      .first<{ odometer_km: number; liters: number }>();
+
+    const previousOdometer = Number(previousFuelRow?.odometer_km ?? 0);
+    const previousLiters = Number(previousFuelRow?.liters ?? 0);
+    const deltaKm = Math.max(0, body.fuelLog.odometerKm - previousOdometer);
+    const autonomyKm = previousOdometer > 0 && previousLiters > 0
+      ? Math.round((deltaKm / previousLiters) * body.fuelLog.liters)
+      : 0;
+
+    await env.DB.prepare(
+      `INSERT INTO vehicle_metrics (
+        vehicle_id,
+        odometer_km,
+        autonomy_km,
+        fuel_type,
+        oil_last_km,
+        oil_next_km,
+        updated_at
+      ) VALUES (?, ?, ?, ?, 0, 0, ?)
+      ON CONFLICT(vehicle_id) DO UPDATE SET
+        odometer_km = excluded.odometer_km,
+        autonomy_km = excluded.autonomy_km,
+        fuel_type = excluded.fuel_type,
+        updated_at = excluded.updated_at`
+    )
+      .bind(
+        nextVehicleId,
+        body.fuelLog.odometerKm,
+        autonomyKm,
+        body.fuelLog.fuelType ?? null,
+        new Date().toISOString()
+      )
+      .run()
+      .catch(() => undefined);
+
     await logOperationalEvent(env, {
       tripRequestId: requestId,
       vehicleId: nextVehicleId,

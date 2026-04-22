@@ -104,6 +104,7 @@ export interface RouteSuggestion {
 
 export interface MonitoringSnapshot {
   generatedAt: string;
+  source: 'backend' | 'fallback';
   summary: {
     activeRequests: number;
     inRoute: number;
@@ -122,6 +123,7 @@ export interface MonitoringSnapshot {
 
 export interface FleetSnapshot {
   generatedAt: string;
+  source: 'backend' | 'fallback';
   vehicles: VehicleRecord[];
 }
 
@@ -295,4 +297,5 @@ export interface VehicleRecord {
   trips: VehicleTrip[];
   fuelLogsCount?: number;
   activeTripsCount?: number;
+  dataIntegrity?: 'persisted' | 'partial';
 }

@@ -12,6 +12,7 @@ type MonitoringDashboardProps = {
 
 export function MonitoringDashboard({ userRole, requests, users, clients, snapshot }: MonitoringDashboardProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'ops' | 'audit'>('overview');
+  const isDegraded = !snapshot || snapshot.source !== 'backend';
 
   const overview = useMemo(() => {
     const activeStatuses = ['em_atendimento', 'agendada', 'em_rota'];
@@ -65,6 +66,15 @@ export function MonitoringDashboard({ userRole, requests, users, clients, snapsh
       <div className="section-head">
         <p className="eyebrow">Monitoramento operacional</p>
         <h2>Leituras unificadas do backend</h2>
+      </div>
+
+      <div className={`monitoring-source ${isDegraded ? 'degraded' : 'healthy'}`}>
+        <strong>{isDegraded ? 'Modo degradado' : 'Snapshot oficial'}</strong>
+        <span>
+          {isDegraded
+            ? 'O painel está usando leitura local de contingência. Valide a conectividade do backend antes de tomar decisões críticas.'
+            : 'Os indicadores desta tela vieram do backend e representam a operação consolidada.'}
+        </span>
       </div>
 
       <div className="settings-tabs">

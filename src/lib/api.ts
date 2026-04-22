@@ -308,6 +308,49 @@ export async function getFleet(token?: string) {
   return request<ApiResponse<{ snapshot: FleetSnapshot }>>('/api/fleet', undefined, token);
 }
 
+export async function saveRouteBatch(
+  payload: {
+    driver: string;
+    vehicle: string;
+    routeDate: string;
+    routeStartTime?: string;
+    routeGapMinutes: number;
+    requestIds: string[];
+  },
+  token?: string
+) {
+  return request<ApiResponse<{ ok: boolean; updatedIds: string[] }>>(
+    '/api/routes',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'save',
+        ...payload
+      })
+    },
+    token
+  );
+}
+
+export async function clearRouteBatch(
+  payload: {
+    requestIds: string[];
+  },
+  token?: string
+) {
+  return request<ApiResponse<{ ok: boolean; updatedIds: string[] }>>(
+    '/api/routes',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'clear',
+        ...payload
+      })
+    },
+    token
+  );
+}
+
 export async function getPreferences(token?: string) {
   return request<ApiResponse<{ preferences: { themeMode: 'dark' | 'light'; patientFontLarge: boolean } }>>(
     '/api/preferences',

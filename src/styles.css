@@ -2753,6 +2753,53 @@ select:focus {
   gap: 12px;
 }
 
+.route-progress-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.route-progress-card,
+.route-ops-summary > div,
+.monitoring-source {
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--card-surface);
+}
+
+.route-progress-card {
+  display: grid;
+  gap: 4px;
+}
+
+.route-progress-card small,
+.route-ops-summary small,
+.monitoring-source strong + span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.route-progress-card.done {
+  border-color: rgba(127, 231, 166, 0.3);
+  background: rgba(127, 231, 166, 0.08);
+}
+
+.route-progress-card.pending {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.route-ops-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.route-ops-summary > div {
+  display: grid;
+  gap: 4px;
+}
+
 .route-dropzone {
   border: 1px dashed var(--line);
   border-radius: 14px;
@@ -2837,6 +2884,22 @@ select:focus {
 .route-summary small {
   color: var(--muted);
   font-size: 0.82rem;
+}
+
+.monitoring-source {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.monitoring-source.healthy {
+  border-color: rgba(127, 231, 166, 0.24);
+  background: rgba(127, 231, 166, 0.08);
+}
+
+.monitoring-source.degraded {
+  border-color: rgba(246, 213, 122, 0.28);
+  background: rgba(246, 213, 122, 0.08);
 }
 
 .fleet-layout {
@@ -3358,6 +3421,19 @@ select:focus {
 }
 
 @media (max-width: 480px) {
+  .route-progress-strip,
+  .route-ops-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .route-actions-footer {
+    flex-direction: column;
+  }
+
+  .route-actions-footer .cta {
+    width: 100%;
+  }
+
   .confirmation-modal {
     margin: 20px;
     width: calc(100% - 40px);

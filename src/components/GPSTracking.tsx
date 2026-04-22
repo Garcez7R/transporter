@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { TripRequest } from '../types';
 
 type GPSTrackingProps = {
@@ -20,6 +20,18 @@ export function GPSTracking({ request, onLocationUpdate }: GPSTrackingProps) {
   const [watchId, setWatchId] = useState<number | null>(null);
   const [locationHistory, setLocationHistory] = useState<LocationData[]>([]);
   const [trackingError, setTrackingError] = useState('');
+  const lastSentRef = useRef<LocationData | null>(null);
+
+  function distanceMeters(from: LocationData, to: LocationData) {
+    const toRadians = (value: number) => (value * Math.PI) / 180;
+    const earthRadius = 6371000;
+    const deltaLat = toRadians(to.lat - from.lat);
+    const deltaLng = toRadians(to.lng - from.lng);
+    const a =
+      Math.sin(deltaLat / 2) ** 2 +
+      Math.cos(toRadians(from.lat)) * Math.cos(toRadians(to.lat)) * Math.sin(deltaLng / 2) ** 2;
+    return 2 * earthRadius * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
 
   const startTracking = useCallback(async () => {
     if (!navigator.geolocation) {
@@ -49,6 +61,8 @@ export function GPSTracking({ request, onLocationUpdate }: GPSTrackingProps) {
       setCurrentLocation(location);
       setLocationHistory((prev) => [...prev, location]);
       setIsTracking(true);
+      lastSentRef.current = location;
+      onLocationUpdate?.(location);
 
       const id = navigator.geolocation.watchPosition(
         (nextPosition) => {
@@ -62,7 +76,17 @@ export function GPSTracking({ request, onLocationUpdate }: GPSTrackingProps) {
 
           setCurrentLocation(newLocation);
           setLocationHistory((prev) => [...prev, newLocation].slice(-50));
-          onLocationUpdate?.(newLocation);
+
+          const lastSent = lastSentRef.current;
+          const enoughTime =
+            !lastSent || newLocation.timestamp.getTime() - lastSent.timestamp.getTime() >= 30000;
+          const enoughDistance =
+            !lastSent || distanceMeters(lastSent, newLocation) >= 75;
+
+          if (enoughTime || enoughDistance) {
+            lastSentRef.current = newLocation;
+            onLocationUpdate?.(newLocation);
+          }
         },
         () => {
           setTrackingError('Não foi possível manter o rastreamento. Verifique a permissão de localização.');
@@ -109,7 +133,7 @@ export function GPSTracking({ request, onLocationUpdate }: GPSTrackingProps) {
       </div>
 
       <p className="helper-text">
-        Esta área mostra posição atual do navegador, histórico curto da sessão e envia pontos de rastreio para o backend sempre que o navegador reporta nova posição.
+        Esta área mostra posição atual do navegador, histórico curto da sessão e envia pontos relevantes ao backend com controle de frequência, evitando ruído operacional.
       </p>
 
       {trackingError ? (

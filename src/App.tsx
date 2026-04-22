@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { DragEvent, FormEvent } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
-import { demoUsers, fleet, vehicleFleet } from './data';
-import { dispatchNotification, getFleet, getMonitoring, getPreferences, listClients, logRequestGps, savePreferences, subscribePush } from './lib/api';
+import { demoUsers, vehicleFleet } from './data';
+import { clearRouteBatch, dispatchNotification, getFleet, getMonitoring, getPreferences, listClients, logRequestGps, savePreferences, saveRouteBatch, subscribePush } from './lib/api';
 import { formatCep, formatDocument, normalizeCep, normalizeDocument } from './lib/persistence';
 import type { AccessRole, FleetSnapshot, MonitoringSnapshot, OperationalConflict, RequestStatus, RouteSuggestion, TripRequest } from './types';
 import { useClients } from './hooks/useClients';
@@ -862,23 +862,9 @@ function App() {
     if (!routeVehicle) setRouteVehicle(nextVehicle);
     if (!routeDate && suggestion.date) setRouteDate(suggestion.date);
 
-    const nextDate = routeDate || suggestion.date;
     const merged = Array.from(new Set([...routeRequests, ...suggestion.requestIds]));
     setRouteRequests(merged);
     setRouteActiveId(suggestion.requestIds[0] ?? null);
-
-    for (let index = 0; index < suggestion.requestIds.length; index += 1) {
-      const requestId = suggestion.requestIds[index];
-      if (!requestId) continue;
-      const order = merged.indexOf(requestId) + 1;
-      await patchRequest(requestId, {
-        driver: nextDriver,
-        vehicle: nextVehicle,
-        status: 'agendada',
-        routeDate: nextDate || undefined,
-        routeOrder: order
-      });
-    }
 
     pushToast('success', `Sugestão aplicada para ${suggestion.count} solicitações de ${suggestion.title}.`);
   }
@@ -1134,22 +1120,12 @@ function App() {
 
   const resolvedVehicleFleet = useMemo(() => {
     if (fleetSnapshot?.vehicles?.length) {
-      return fleetSnapshot.vehicles.map((vehicle) => {
-        const fallback = vehicleFleet.find(
-          (item) =>
-            item.plate.toLowerCase() === vehicle.plate.toLowerCase() ||
-            item.name.toLowerCase() === vehicle.name.toLowerCase()
-        );
-        return {
-          ...fallback,
-          ...vehicle,
-          maintenance: vehicle.maintenance.length ? vehicle.maintenance : fallback?.maintenance ?? [],
-          trips: vehicle.trips.length ? vehicle.trips : fallback?.trips ?? [],
-          oil: vehicle.oil ?? fallback?.oil ?? { lastKm: 0, nextKm: 0 }
-        };
-      });
+      return fleetSnapshot.vehicles;
     }
-    return vehicleFleet;
+    return vehicleFleet.map((vehicle) => ({
+      ...vehicle,
+      dataIntegrity: 'partial' as const
+    }));
   }, [fleetSnapshot]);
 
   const activeVehicle = useMemo(
@@ -1158,9 +1134,21 @@ function App() {
   );
 
   const routeItems = useMemo(
-    () => routeRequests.map((id) => visibleRequests.find((request) => request.id === id)).filter(Boolean),
+    () =>
+      routeRequests
+        .map((id) => visibleRequests.find((request) => request.id === id))
+        .filter((request): request is TripRequest => Boolean(request)),
     [routeRequests, visibleRequests]
   );
+
+  const routeNeedsConfig = !routeDriver || !routeVehicle || !routeDate;
+  const routeFirstDeparture = routeItems.length ? buildRouteDeparture(0) || routeItems[0]?.departureAt || '' : '';
+  const routeLastDeparture = routeItems.length ? buildRouteDeparture(routeItems.length - 1) || routeItems[routeItems.length - 1]?.departureAt || '' : '';
+  const routeReadinessMessage = routeNeedsConfig
+    ? 'Defina motorista, veículo e data para começar a montar a rota.'
+    : routeItems.length
+      ? 'Rota pronta para revisão final e publicação.'
+      : 'Agora selecione os pacientes da lista à esquerda e arraste para a fila da rota.';
 
   const routeActive = useMemo(
     () => routeItems.find((request) => request?.id === routeActiveId) ?? null,
@@ -1235,15 +1223,18 @@ function App() {
 
     selectedDateRequests.forEach((request) => {
       if (!request.vehicle) return;
-      const fleetStatus = fleet.find((item) => item.role === 'Veículo' && item.name.toLowerCase() === request.vehicle.toLowerCase());
-      const vehicleRecord = vehicleFleet.find((item) => item.name.toLowerCase() === request.vehicle.toLowerCase());
+      const vehicleRecord = resolvedVehicleFleet.find(
+        (item) =>
+          item.name.toLowerCase() === request.vehicle.toLowerCase() ||
+          item.plate.toLowerCase() === request.vehicle.toLowerCase()
+      );
       const nearOilLimit = vehicleRecord ? vehicleRecord.oil.nextKm - vehicleRecord.odometer <= 1200 : false;
-      if (fleetStatus?.status === 'manutenção' || nearOilLimit) {
+      if ((vehicleRecord?.status ?? '').toLowerCase().includes('manut') || nearOilLimit) {
         conflicts.push({
           id: `maintenance-${request.id}`,
           category: 'vehicle_maintenance',
           title: `Veículo com restrição: ${request.vehicle}`,
-          detail: fleetStatus?.status === 'manutenção'
+          detail: (vehicleRecord?.status ?? '').toLowerCase().includes('manut')
             ? `${request.protocol} está alocado em veículo marcado em manutenção.`
             : `${request.protocol} usa veículo próximo da revisão (${vehicleRecord?.oil.nextKm.toLocaleString('pt-BR')} km).`,
           tone: 'warning',
@@ -1276,7 +1267,7 @@ function App() {
     });
 
     return conflicts.slice(0, 6);
-  }, [selectedSidebarDate, session?.role, sidebarRequests]);
+  }, [resolvedVehicleFleet, selectedSidebarDate, session?.role, sidebarRequests]);
 
   const fallbackRouteSuggestions = useMemo<RouteSuggestion[]>(() => {
     const pool = backlogRequests.filter((request) => {
@@ -1365,30 +1356,13 @@ function App() {
       return;
     }
     if (routeRequests.includes(requestId)) return;
-    const fallbackDate = splitDateTime(request.departureAt).date;
-    const routeDateValue = routeDate || fallbackDate;
-    const nextOrder = routeRequests.length + 1;
     setRouteRequests((current) => [...current, requestId]);
     setRouteActiveId(requestId);
-    await patchRequest(requestId, {
-      driver: routeDriver,
-      vehicle: routeVehicle,
-      status: 'agendada',
-      routeDate: routeDateValue || undefined,
-      routeOrder: nextOrder
-    });
   }
 
   async function handleRouteRemove(requestId: string) {
     setRouteRequests((current) => current.filter((id) => id !== requestId));
     if (routeActiveId === requestId) setRouteActiveId(null);
-    await patchRequest(requestId, {
-      driver: '',
-      vehicle: '',
-      status: 'aguardando_distribuicao',
-      routeDate: '',
-      routeOrder: null
-    });
   }
 
   function reorderRoute(requestId: string, targetId: string) {
@@ -1419,6 +1393,7 @@ function App() {
   }
 
   async function handleRouteSave() {
+    if (!session?.token) return;
     if (!routeDriver || !routeVehicle) {
       pushToast('error', 'Selecione motorista e veículo para salvar a rota.');
       return;
@@ -1436,43 +1411,37 @@ function App() {
       pushToast('error', blockingConflict.detail);
       return;
     }
-    for (let index = 0; index < routeItems.length; index += 1) {
-      const request = routeItems[index];
-      if (!request) continue;
-      const departureAt = buildRouteDeparture(index);
-      await patchRequest(request.id, {
+    if (!routeItems.length) {
+      pushToast('error', 'Adicione pelo menos um paciente na fila antes de publicar a rota.');
+      return;
+    }
+    await saveRouteBatch(
+      {
         driver: routeDriver,
         vehicle: routeVehicle,
-        status: 'agendada',
-        departureAt: departureAt || request.departureAt,
         routeDate,
-        routeOrder: index + 1
-      });
-    }
+        routeStartTime,
+        routeGapMinutes,
+        requestIds: routeItems.map((item) => item.id)
+      },
+      session.token
+    );
+    await refreshRequests(session.token);
     showBanner('success', 'Rota salva e sincronizada.');
-    if (session?.token) {
-      dispatchNotification(
-        {
-          title: 'Rota publicada',
-          body: `Rota de ${routeDriver} pronta para ${routeDate}.`,
-          targetRole: 'motorista'
-        },
-        session.token
-      ).catch(() => undefined);
-    }
+    dispatchNotification(
+      {
+        title: 'Rota publicada',
+        body: `Rota de ${routeDriver} pronta para ${routeDate}.`,
+        targetRole: 'motorista'
+      },
+      session.token
+    ).catch(() => undefined);
   }
 
   async function handleRouteClear() {
-    for (const request of routeItems) {
-      if (!request) continue;
-      await patchRequest(request.id, {
-        driver: '',
-        vehicle: '',
-        status: 'aguardando_distribuicao',
-        routeDate: '',
-        routeOrder: null
-      });
-    }
+    if (!session?.token || !routeItems.length) return;
+    await clearRouteBatch({ requestIds: routeItems.map((item) => item.id) }, session.token);
+    await refreshRequests(session.token);
     setRouteRequests([]);
     setRouteActiveId(null);
     pushToast('success', 'Rota limpa e atribuições removidas.');
@@ -2359,13 +2328,30 @@ function App() {
 
           <div className="manager-col route">
             <div className="section-head compact">
-              <p className="eyebrow">Rota do motorista</p>
-              <h3>Montagem da rota</h3>
+              <p className="eyebrow">Assistente de despacho</p>
+              <h3>Organização da viagem</h3>
             </div>
-            <p className="helper-text">Defina motorista, veículo e data para montar a fila operacional do dia.</p>
+            <p className="helper-text">{routeReadinessMessage}</p>
+            <div className="route-progress-strip">
+              <div className={`route-progress-card ${routeNeedsConfig ? 'pending' : 'done'}`}>
+                <small>Etapa 1</small>
+                <strong>Configurar rota</strong>
+                <span>{routeNeedsConfig ? 'Motorista, veículo e data pendentes.' : 'Base operacional definida.'}</span>
+              </div>
+              <div className={`route-progress-card ${routeItems.length ? 'done' : 'pending'}`}>
+                <small>Etapa 2</small>
+                <strong>Selecionar pacientes</strong>
+                <span>{routeItems.length ? `${routeItems.length} paciente(s) na fila.` : 'Arraste os pacientes para compor a viagem.'}</span>
+              </div>
+              <div className={`route-progress-card ${!routeNeedsConfig && routeItems.length ? 'done' : 'pending'}`}>
+                <small>Etapa 3</small>
+                <strong>Revisar e publicar</strong>
+                <span>{!routeNeedsConfig && routeItems.length ? 'Tudo pronto para salvar.' : 'Conclua as etapas anteriores.'}</span>
+              </div>
+            </div>
             <div className="route-config-grid">
               <label>
-                <span>Motorista</span>
+                <span>Motorista responsável</span>
                 <input
                       list="route-drivers"
                       value={routeDriver}
@@ -2379,7 +2365,7 @@ function App() {
                     </datalist>
                   </label>
                   <label>
-                    <span>Veículo</span>
+                    <span>Veículo da rota</span>
                     <input
                       list="route-vehicles"
                       value={routeVehicle}
@@ -2393,15 +2379,15 @@ function App() {
                     </datalist>
                   </label>
                   <label>
-                    <span>Data da rota</span>
+                    <span>Data da operação</span>
                     <input type="date" value={routeDate} onChange={(event) => setRouteDate(event.target.value)} />
                   </label>
                   <label>
-                    <span>Horário base</span>
+                    <span>Primeira saída</span>
                     <input type="time" value={routeStartTime} onChange={(event) => setRouteStartTime(formatTime(event.target.value))} />
                   </label>
               <label>
-                <span>Intervalo (min)</span>
+                <span>Intervalo entre pacientes (min)</span>
                 <input
                   type="number"
                   min={5}
@@ -2410,6 +2396,24 @@ function App() {
                   onChange={(event) => setRouteGapMinutes(Number(event.target.value || 0))}
                     />
                   </label>
+                </div>
+                <div className="route-ops-summary">
+                  <div>
+                    <small>Fila atual</small>
+                    <strong>{routeItems.length} paciente(s)</strong>
+                  </div>
+                  <div>
+                    <small>Primeira saída</small>
+                    <strong>{routeFirstDeparture ? formatSchedule(routeFirstDeparture) : 'A definir'}</strong>
+                  </div>
+                  <div>
+                    <small>Última saída</small>
+                    <strong>{routeLastDeparture ? formatSchedule(routeLastDeparture) : 'A definir'}</strong>
+                  </div>
+                  <div>
+                    <small>Backlog filtrado</small>
+                    <strong>{backlogRequests.length} pendência(s)</strong>
+                  </div>
                 </div>
                 <div
                   className={`route-dropzone ${routeDropActive ? 'active' : ''}`}
@@ -2458,30 +2462,30 @@ function App() {
                     ) : (
                       <div className="empty-state">
                         <div className="empty-icon">🧭</div>
-                        <strong>Arraste para montar a rota</strong>
-                        <p>Selecione motorista/veículo para habilitar a fila.</p>
+                        <strong>Monte a fila da viagem aqui</strong>
+                        <p>Depois de configurar a rota, arraste os pacientes da lista à esquerda para definir a ordem de atendimento.</p>
                       </div>
                     )}
                   </div>
                 </div>
                 <div className="route-actions-footer">
-                  <button className="cta" type="button" onClick={handleRouteSave}>
-                    Salvar rota
+                  <button className="cta" type="button" onClick={handleRouteSave} disabled={routeNeedsConfig || !routeItems.length}>
+                    Publicar rota
                   </button>
-                  <button className="cta ghost" type="button" onClick={() => {
+                  <button className="cta ghost" type="button" disabled={!routeItems.length} onClick={() => {
                     confirmationModal.showConfirmation('Deseja limpar a fila atual e remover as atribuições persistidas desta rota?', () => {
                       handleRouteClear().catch(() => undefined);
                     });
                   }}>
-                    Limpar fila
+                    Limpar rascunho
                   </button>
                 </div>
               </div>
 
               <div className="manager-col summary">
                 <div className="section-head compact">
-                  <p className="eyebrow">Resumo rápido</p>
-                  <h3>Solicitação em foco</h3>
+                  <p className="eyebrow">Revisão da viagem</p>
+                  <h3>Paciente em foco</h3>
                 </div>
                 {routeActive ? (
                   <div className="route-summary">
@@ -2527,6 +2531,7 @@ function App() {
                     <div className="fleet-meta">
                       <span>Km total: {vehicle.odometer.toLocaleString('pt-BR')}</span>
                       <span>Autonomia: {vehicle.autonomyKm} km</span>
+                      <span>{vehicle.dataIntegrity === 'partial' ? 'Base parcial' : 'Base persistida'}</span>
                     </div>
                   </article>
                 ))}
@@ -2537,6 +2542,12 @@ function App() {
                     <p className="eyebrow">Telemetria</p>
                     <h3>{activeVehicle.name}</h3>
                   </div>
+                  {activeVehicle.dataIntegrity === 'partial' ? (
+                    <div className="monitoring-source degraded">
+                      <strong>Dados ainda incompletos</strong>
+                      <span>Este veículo já aparece na operação, mas ainda depende de poucos registros persistidos para consolidar autonomia, óleo e histórico.</span>
+                    </div>
+                  ) : null}
                   <div className="fleet-metrics">
                     <div>
                       <span>Hodômetro</span>
